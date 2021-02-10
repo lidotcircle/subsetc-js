@@ -1,0 +1,33 @@
+{
+  "name": "subsetc",
+  "version": "1.0.0",
+  "description": "implement a compiler for subset of C language",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/analyman/subsetc-js.git"
+  },
+  "keywords": [
+    "C",
+    "Language",
+    "C",
+    "Compiler"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/analyman/subsetc-js/issues"
+  },
+  "homepage": "https://github.com/analyman/subsetc-js#readme",
+  "devDependencies": {
+    "@types/jest": "^26.0.20",
+    "jest": "^26.6.3",
+    "ts-jest": "^26.5.1"
+  },
+  "dependencies": {
+    "typescript": "^4.1.4"
+  }
+}
