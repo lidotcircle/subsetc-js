@@ -287,7 +287,7 @@ export class Tokenizor {
     static readonly operators_l1 = 
         /^(\.|\+|-|!|~|\*|&|\/|%|<|>|\^|\||=)/;
     static readonly operators_l2 = 
-        /^(\+\+|--|->|<<|>>|<=|>=|==|!=|&&|\|\||\+=|-=|\*=|\/=|%=|&=|^=|\|=)/;
+        /^(\+\+|--|->|<<|>>|<=|>=|==|!=|&&|\|\||\+=|-=|\*=|\/=|%=|&=|\^=|\|=)/;
     static readonly operators_l3 = 
         /^(<<=|>>=)/;
     static readonly punctuation = /^(\(|\)|\[|\]|\{|\}|,|;|\?|:)/;

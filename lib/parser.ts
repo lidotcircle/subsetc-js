@@ -1,5 +1,6 @@
-import { BinaryExprASTType, ExprAST, FloatPointExprAST, FunctionCallASTType, FunctionCallExprAST, IntegerExprAST, OperatorTokenToBinaryExprASTType, OperatorTokenToUnaryPrefixExprASTType, OperatorTokenToUnarySuffixExprASTType, StringExprAST, TenaryExprASTType, UnaryExprASTType, VariableExprAST, ZeronaryASTType } from "./ast";
+import { ArrayIndexExprAST, BinaryExprASTType, ExprAST, ExprASTType, FloatPointExprAST, FunctionCallASTType, FunctionCallExprAST, IntegerExprAST, OperatorPriorityGreaterEqual, OperatorTokenToBinaryExprASTType, OperatorTokenToUnaryPrefixExprASTType, OperatorTokenToUnarySuffixExprASTType, StringExprAST, TenaryExprASTType, UnaryExprASTType, VariableExprAST, ZeronaryASTType } from "./ast";
 import { FloatToken, IdentifierToken, IntegerToken, OperatorToken, OperatorType, PunctuationToken, PunctuationType, StringToken, Token, Tokenizor, TokenType } from "./tokenizor";
+import assert from 'assert';
 
 
 export class Parser {
@@ -27,19 +28,25 @@ export class Parser {
      * DotExpr      := Expr . iD             DONE
      * PointExpr    := Expr -> iD            DONE
      * CondExpr     := Expr ? Expr : Expr    DONE
-     * CastExpr     := ( Type ) Expr
+     * CastExpr     := ( Type ) Expr    // TODO
      * CompoundExpr := ( Type ) { .Id } // TODO
      */
     parseExprBottomUp(): ExprAST {
         const thestack: (ExprAST | Token) [] = [];
+        this.parseExprBottomUpRec(thestack);
+        return thestack[0] as ExprAST;
 
         throw new Error('expect an expression');
     }
 
     private parseExprBottomUpRec(stack: (ExprAST | Token) []) //{
     {
-        for(let token = this.tokenizor.front; 
-            token.token_type != TokenType.End; 
+        // FIXME
+        if(this.tokenizor.front == null) {
+            this.tokenizor.next();
+        }
+
+        for(let token = this.tokenizor.front;; 
             this.tokenizor.next(), token=this.tokenizor.front) 
         {
             stack.push(token);
@@ -78,6 +85,7 @@ export class Parser {
                         case PunctuationType.lCBracket:
                         case PunctuationType.lRBracket:
                         case PunctuationType.lSBracket:
+                            // TODO
                             break;
                         case PunctuationType.rCBracket: {
                             throw new Error('not implemented');
@@ -95,37 +103,65 @@ export class Parser {
                         case PunctuationType.Semicolon: {
                             this.tokenizor.shift();
                             stack.pop();
+                            if(stack.length != 1 || !(stack[0] instanceof ExprAST)) {
+                                console.error(stack);
+                                throw new Error('bad expression');
+                            }
                             return;
                         } break;
                     }
                 } break;
                 case TokenType.Operator: {
-                    /** suffix operator ++ -- */
+                    /** suffix operator ++ --, here suffix operator has hightest priority and it's left associative */
                     if(this.tryMergeStack_SuffixUnaryOperator(stack)) {
                         this.doSomethingInLastIsExpr(stack);
                     }
+                } break;
+                case TokenType.End: {
+                    throw new Error(`unexpected end at ${token.file}:${token.line}:${token.column}`);
                 } break;
                 default: throw new Error(`unexpected token at ${token.file}:${token.line}:${token.column}`);
             }
         }
     } //}
 
-    private doSomethingInLastIsExpr(stack: (ExprAST | Token)[]) {
-        const op = this.stackIs_InBinaryOperator(stack);
+    private doSomethingInLastIsExpr(stack: (ExprAST | Token)[]) //{
+    {
+        const op = this.stackIs_InBinaryOperator(stack) || this.stackIs_PrefixUnaryOpeartor(stack) ||
+                   (this.stackIs_TenaryCondition(stack) && TenaryExprASTType.TenaryCondition);
         if(op) {
             this.tokenizor.next();
             const token = this.tokenizor.front;
             this.tokenizor.shift();
+            let v0: ExprASTType;
+            if(token.token_type == TokenType.Punctuation) {
+                const ptoken = token as PunctuationToken;
+                if(ptoken.punctuation == PunctuationType.lSBracket) {
+                    v0 = BinaryExprASTType.ArrayIndex;
+                } else if (ptoken.punctuation == PunctuationType.Question) {
+                    v0 = TenaryExprASTType.TenaryCondition;
+                }
+            }
 
-            switch(op) {
-                case BinaryExprASTType.MemberAccess:
-                case BinaryExprASTType.MemberAccessByPointer: {
-                    this.assertMerge(this.tryMergeStack_InBinaryOperator(stack));
+            if(token.token_type == TokenType.Operator || v0) {
+                const v1 = token.token_type == TokenType.Operator ? 
+                               OperatorTokenToUnarySuffixExprASTType(token as OperatorToken) : null;
+                const v2 = token.token_type == TokenType.Operator ?
+                               OperatorTokenToBinaryExprASTType(token as OperatorToken) : null;
+                if((!v0 || OperatorPriorityGreaterEqual(op, v0)) &&
+                   (!v1 || OperatorPriorityGreaterEqual(op, v1)) && 
+                   (!v2 || OperatorPriorityGreaterEqual(op, v2)))
+                {
+                    this.assertMerge(this.tryMergeStack_InBinaryOperator(stack) ||
+                                     this.tryMergeStack_PrefixUnaryOperator(stack) ||
+                                     this.tryMergeStack_TenaryCondition(stack));
                     this.doSomethingInLastIsExpr(stack);
-                } break;
+                }
+            } else {
+                this.mergeStackUtilNothingCanDo(stack);
             }
         }
-    }
+    } //}
 
     private mergeStackUtilNothingCanDo(stack: (ExprAST | Token) []) //{
     {
@@ -133,6 +169,7 @@ export class Parser {
         while(run) {
             run = this.tryMergeStack_Funcall(stack) ||
                   this.tryMergeStack_RoundBacket(stack) ||
+                  this.tryMergeStack_InBinaryOperator(stack) ||
                   this.tryMergeStack_PrefixUnaryOperator(stack) ||
                   this.tryMergeStack_SuffixUnaryOperator(stack) ||
                   this.tryMergeStack_ArrayIndexOperator(stack) ||
@@ -147,7 +184,7 @@ export class Parser {
             const node = new FunctionCallExprAST((stack[n] as IdentifierToken).id);
             for(let i=n+2;i<stack.length;i++) {
                 if(stack[i] instanceof ExprAST) {
-                    node.children.push(stack[i] as ExprAST);
+                    node.push_child(stack[i] as ExprAST);
                 }
             }
             stack.splice(n);
@@ -163,9 +200,9 @@ export class Parser {
         const betype = this.stackIs_InBinaryOperator(stack);
         if(betype) {
             const node = new ExprAST(betype);
-            node.children.unshift(stack.pop() as ExprAST);
+            node.unshift_child(stack.pop() as ExprAST);
             stack.pop();
-            node.children.unshift(stack.pop() as ExprAST);
+            node.unshift_child(stack.pop() as ExprAST);
             stack.push(node);
             return true;
         } else {
@@ -178,7 +215,7 @@ export class Parser {
         const utype = this.stackIs_PrefixUnaryOpeartor(stack);
         if(utype) {
             const node = new ExprAST(utype);
-            node.children.unshift(stack.pop() as ExprAST);
+            node.unshift_child(stack.pop() as ExprAST);
             stack.pop();
             stack.push(node);
             return true;
@@ -191,9 +228,9 @@ export class Parser {
         const slen = stack.length;
         const utype = this.stackIs_SuffixUnaryOperator(stack);
         if(utype) {
-            const node = new ExprAST(utype);
-            node.children.unshift(stack.pop() as ExprAST);
             stack.pop();
+            const node = new ExprAST(utype);
+            node.unshift_child(stack.pop() as ExprAST);
             stack.push(node);
             return true;
         } else {
@@ -204,11 +241,11 @@ export class Parser {
     {
         const slen = stack.length;
         if(this.stackIs_ArrayIndexOprator(stack)) {
-            const node = new ExprAST(BinaryExprASTType.ArrayIndex);
+            const node = new ArrayIndexExprAST();
             stack.pop();
-            node.children.unshift(stack.pop() as ExprAST);
+            node.unshift_child(stack.pop() as ExprAST);
             stack.pop();
-            node.children.unshift(stack.pop() as ExprAST);
+            node.unshift_child(stack.pop() as ExprAST);
             stack.push(node);
             return true;
         } else {
@@ -275,11 +312,11 @@ export class Parser {
         const slen = stack.length;
         if(this.stackIs_TenaryCondition(stack)) {
             const node = new ExprAST(TenaryExprASTType.TenaryCondition)
-            node.children.unshift(stack.pop() as ExprAST);
+            node.unshift_child(stack.pop() as ExprAST);
             stack.pop();
-            node.children.unshift(stack.pop() as ExprAST);
+            node.unshift_child(stack.pop() as ExprAST);
             stack.pop();
-            node.children.unshift(stack.pop() as ExprAST);
+            node.unshift_child(stack.pop() as ExprAST);
             stack.push(node);
             return true;
         } else {
@@ -343,9 +380,7 @@ export class Parser {
                return null;
         }
 
-        const ans: BinaryExprASTType = OperatorTokenToBinaryExprASTType(stack[slen - 2] as OperatorToken);
-        if(ans == null) throw new Error('parser error: unknown operator');
-        return ans;
+        return OperatorTokenToBinaryExprASTType(stack[slen - 2] as OperatorToken);
     } //}
     private stackIs_PrefixUnaryOpeartor(stack: (ExprAST | Token)[]): UnaryExprASTType | null //{
     {
@@ -357,9 +392,7 @@ export class Parser {
             return null;
         }
 
-        const ans = OperatorTokenToUnaryPrefixExprASTType(stack[slen - 2] as OperatorToken);
-        if(ans == null) throw new Error('parser error: unknown operator');
-        return ans;
+        return OperatorTokenToUnaryPrefixExprASTType(stack[slen - 2] as OperatorToken);
     } //}
     private stackIs_SuffixUnaryOperator(stack: (ExprAST | Token)[]): UnaryExprASTType | null //{
     {
@@ -371,9 +404,7 @@ export class Parser {
             return null;
         }
 
-        const ans = OperatorTokenToUnarySuffixExprASTType(stack[slen - 1] as OperatorToken);
-        if(ans == null) throw new Error('parser error: unknown operator');
-        return ans;
+        return OperatorTokenToUnarySuffixExprASTType(stack[slen - 1] as OperatorToken);
     } //}
     private stackIs_ArrayIndexOprator  (stack: (ExprAST | Token)[]): boolean //{
     {
@@ -383,9 +414,9 @@ export class Parser {
             stack[slen - 1] instanceof PunctuationToken && 
             (stack[slen - 1] as PunctuationToken).punctuation == PunctuationType.rSBracket &&
             stack[slen - 2] instanceof ExprAST && 
-            stack[slen - 3] instanceof OperatorToken && 
+            stack[slen - 3] instanceof PunctuationToken && 
             (stack[slen - 3] as PunctuationToken).punctuation == PunctuationType.lSBracket &&
-            stack[slen - 4] instanceof ExprAST) ;
+            stack[slen - 4] instanceof ExprAST);
     } //}
     private stackIs_RoundBacket        (stack: (ExprAST | Token)[]): boolean //{
     {
@@ -395,7 +426,7 @@ export class Parser {
             stack[slen - 1] instanceof PunctuationToken && 
             (stack[slen - 1] as PunctuationToken).punctuation == PunctuationType.rRBracket &&
             stack[slen - 2] instanceof ExprAST && 
-            stack[slen - 3] instanceof OperatorToken && 
+            stack[slen - 3] instanceof PunctuationToken && 
             (stack[slen - 3] as PunctuationToken).punctuation == PunctuationType.lRBracket);
     } //}
     private stackIs_TenaryCondition    (stack: (ExprAST | Token)[]): boolean //{
@@ -407,7 +438,7 @@ export class Parser {
             stack[slen - 2] instanceof PunctuationToken && 
             (stack[slen - 2] as PunctuationToken).punctuation == PunctuationType.Colon &&
             stack[slen - 3] instanceof ExprAST && 
-            stack[slen - 4] instanceof OperatorToken && 
+            stack[slen - 4] instanceof PunctuationToken && 
             (stack[slen - 4] as PunctuationToken).punctuation == PunctuationType.Question &&
             stack[slen - 5] instanceof ExprAST);
     } //}
