@@ -29,18 +29,18 @@ implement a compiler for subset of C language.
 
 ``` c
 /** TODO */
-Expr  := ( Expr ) | FCall | AExpr | iD | String | iNTEGER | DefExpr | RefExpr | IdxExpr | DotExpr | PointExpr | CondExpr
-String := sTRING | sTRING String
-FCall := Expr lBRACE [Expr [cOMMA Expr] *] ? rBRACE
-AExpr := AExpr_B | AExpr_U_PRE | AExpr_U_POST
-AExpr_B := Expr { +, -, *, /, &, |, ^, <<, >>, &&, ||, <, <=, >, >=, ==, !=, =, +=, -=, %=, /=, &=, ^=, |=, <<=, >>= } Expr
-AExpr_U_PRE  := { ++, --, !, ~ } Expr 
+Expr         := ( Expr ) | FCall | AExpr | iD | String | iNTEGER | DefExpr | RefExpr | IdxExpr | DotExpr | PointExpr | CondExpr
+String       := sTRING | sTRING String
+FCall        := Expr lBRACE [Expr [cOMMA Expr] *] ? rBRACE
+AExpr        := AExpr_B | AExpr_U_PRE | AExpr_U_POST
+AExpr_B      := Expr { +, -, *, /, &, |, ^, <<, >>, &&, ||, <, <=, >, >=, ==, !=, =, +=, -=, %=, /=, &=, ^=, |=, <<=, >>= } Expr
+AExpr_U_PRE  := { ++, --, !, ~ } Expr
 AExpr_U_POST := Expr { ++, -- }
-DefExpr := * Expr
-RefExpr := & Expr
-IdxExpr := Expr [ Expr ]
-DotExpr := Expr . iD
-PointExpr := Expr -> iD
-CondExpr := Expr ? Expr : Expr
+DefExpr      := * Expr
+RefExpr      := & Expr
+IdxExpr      := Expr [ Expr ]
+DotExpr      := Expr . iD
+PointExpr    := Expr -> iD
+CondExpr     := Expr ? Expr : Expr
 ```
 

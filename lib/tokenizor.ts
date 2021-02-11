@@ -17,12 +17,13 @@ export enum TokenType {
     FOR = 'FOR',
     BREAK = 'BREAK',
     CONTINUE = 'CONTINUE',
+    SWITCH = 'SWITCH',
     CASE = 'CASE',
     DEFAULT = 'DEFUALT',
     GOTO = 'GOTO',
     RETURN = 'RETURN',
 
-    CLASS = 'CLASS',
+    STRUCT = 'STRUCT',
     ENUM = 'ENUM',
     UNION = 'UNION',
     TYPEDEF = 'TYPEDEF',
@@ -41,12 +42,13 @@ const reserved_keywords = {
     'for': TokenType.FOR,
     'break': TokenType.BREAK,
     'continue': TokenType.CONTINUE,
+    'switch': TokenType.SWITCH,
     'case': TokenType.CASE,
     'default': TokenType.DEFAULT,
     'goto': TokenType.GOTO,
     'return': TokenType.RETURN,
 
-    'class': TokenType.CLASS,
+    'struct': TokenType.STRUCT,
     'enum': TokenType.ENUM,
     'union': TokenType.UNION,
     'typedef': TokenType.TYPEDEF,
@@ -74,31 +76,31 @@ export class Token {
 }
 
 export enum OperatorType {
-    Increment, Decrement, 
+    Increment = '++', Decrement = '--', 
 
-    MemberAccess, MemberAccessByPointer,
-    LogicalNot, BitwiseNot,
+    MemberAccess = '.', MemberAccessByPointer = '->',
+    LogicalNot = '!', BitwiseNot = '~',
 
-    Multiplication_AddressOf, Division, Remainder, 
-    Addition_UnaryPlus, Substraction_UnaryMinus, 
+    Multiplication_AddressOf = '*', Division = '/', Remainder = '%',
+    Addition_UnaryPlus = '+', Substraction_UnaryMinus = '-', 
 
-    BitwiseLeftShift, BitwiseRightShift,
+    BitwiseLeftShift = '<<', BitwiseRightShift = '>>',
 
-    LessThan, LessEqual,
-    GreaterThan, GreaterEqual,
-    Equal, NotEqual,
+    LessThan = '<', LessEqual = '<=',
+    GreaterThan = '>', GreaterEqual = '>=',
+    Equal = '==', NotEqual = '!=',
 
-    BitwiseAnd_Reference, BitwiseXor, BitwiseOr,
-    LogicalAnd, LogicalOr,
+    BitwiseAnd_Reference = '&', BitwiseXor = '^', BitwiseOr = '|',
+    LogicalAnd = '&&', LogicalOr = '||',
 
-    SimpleAssignment,
-    AssignmentAddition, AssignmentSubstraction,
-    AssignmentProduct, AssignmentQuotient, AssignmentRemainder,
-    AssignmentBitwiseLeftShift,
-    AssignmentBitwiseRightShift,
-    AssignmentBitwiseAnd,
-    AssignmentBitwiseXor,
-    AssignmentBitwiseOr,
+    SimpleAssignment = '=',
+    AssignmentAddition = '+=', AssignmentSubstraction = '-=',
+    AssignmentProduct = '*=', AssignmentQuotient = '/=', AssignmentRemainder = '%=',
+    AssignmentBitwiseLeftShift = '<<=',
+    AssignmentBitwiseRightShift = '>>=',
+    AssignmentBitwiseAnd = '&=',
+    AssignmentBitwiseXor = '^=',
+    AssignmentBitwiseOr  = '|=',
 }
 
 export class OperatorToken extends Token {
@@ -223,6 +225,14 @@ export class Tokenizor {
         this.column = 1;
         this.cursor = 0;
         this.savedTokens = [];
+    }
+
+    public copy(): Tokenizor {
+        const ans = new Tokenizor(this.file);
+        for(const prop in this) {
+            ans[prop as string] = this[prop];
+        }
+        return ans;
     }
 
     feed(text: string): void {

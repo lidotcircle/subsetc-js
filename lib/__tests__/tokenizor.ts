@@ -94,5 +94,26 @@ describe('Tokenizor test', () => {
             throw new Error('bad bad, it\'s end');
         } catch {}
     });
+
+    test('block more', () => {
+        const t = new Tokenizor('hello.c');
+
+        t.feed(`int main() {
+            printf("hello world\\n");
+            return 0;
+        }`);
+        t.next(); t.next(); t.next(); t.next(); t.next();
+        t.next(); t.next(); t.next(); t.next(); t.next();
+        t.next(); t.next(); t.next();
+        t.next();
+        t.next();
+        expect(t.front.token_type).toBe(TokenType.End);
+        t.shift(); 
+        t.shift();
+        expect(t.front.token_type).toBe(TokenType.Punctuation);
+        t.next();
+        t.next();
+        expect(t.front.token_type).toBe(TokenType.End);
+    });
 });
 
