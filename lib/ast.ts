@@ -8,7 +8,7 @@ export enum ASTType {
 
     SwitchBlock, CaseBlock,
 
-    Expr
+    Expr, TypeExpr
 }
 
 export class BasicAST {
@@ -446,6 +446,109 @@ export class CastExprAST extends ExprAST {
 export class CompoundLiteralExprAST extends ExprAST {
     constructor() {
         super(UnaryExprASTType.CompoundLiteral);
+    }
+}
+
+
+export enum TypeQualifier {Const, Restrict, Volatile}
+export enum TypeSpecifier {
+    Struct, Union, Enum, Void, Integer, Float,
+    Array, Pointer, Function
+}
+export class TypeExprAST extends BasicAST {
+    qualifier: TypeQualifier[];
+    specifier: TypeSpecifier;
+    get sizeof(): number {
+        throw new Error('Not Implemented');
+    }
+
+    constructor(specifier: TypeSpecifier) {
+        super(ASTType.TypeExpr);
+        this.qualifier = [];
+        this.specifier = specifier;
+    }
+}
+
+export class StructTypeExprAST extends TypeExprAST {
+    structid: string;
+
+    constructor() {
+        super(TypeSpecifier.Struct);
+    }
+}
+
+export class UnionTypeExprAST extends TypeExprAST {
+    unionid: string;
+
+    constructor() {
+        super(TypeSpecifier.Union);
+    }
+}
+
+export class EnumTypeExprAST extends TypeExprAST {
+    enumid: string;
+
+    constructor() {
+        super(TypeSpecifier.Enum);
+    }
+}
+
+export class VoidTypeExprAST extends TypeExprAST {
+    constructor() {
+        super(TypeSpecifier.Void);
+    }
+}
+
+enum IntegerSize {i8 = 8, i16 = 16, i32 = 32, i64 = 64}
+export class IntegerTypeExprAST extends TypeExprAST {
+    integerSize: IntegerSize;
+    signed: boolean;
+    get sizeof(): number {return this.integerSize;}
+
+    constructor() {
+        super(TypeSpecifier.Integer);
+    }
+}
+
+enum FloatPointSize {f32 = 32, f64 = 64}
+export class FloatPointTypeExprAST extends TypeExprAST {
+    floatPointSize: FloatPointSize;
+    get sizeof(): number {return this.floatPointSize;}
+
+    constructor() {
+        super(TypeSpecifier.Float);
+        this.floatPointSize = FloatPointSize.f32;
+    }
+}
+
+/** sizeof a pointer is 8 bytes */
+export class ArrayTypeExprAST extends TypeExprAST {
+    size: number;
+    next: TypeExprAST;
+    get sizeof(): number {return 8;}
+
+    constructor(size: number) {
+        super(TypeSpecifier.Array);
+    }
+}
+
+export class PointerTypeExprAST extends TypeExprAST {
+    next: TypeExprAST;
+    get sizeof(): number {return 8;}
+
+    constructor() {
+        super(TypeSpecifier.Pointer);
+    }
+}
+
+export class FunctionTypeExprAST extends TypeExprAST {
+    returnType: TypeExprAST;
+    argumentsType: TypeExprAST[];
+    get sizeof(): number {return 8;}
+
+    constructor() {
+        super(TypeSpecifier.Function);
+        this.argumentsType = [];
     }
 }
 

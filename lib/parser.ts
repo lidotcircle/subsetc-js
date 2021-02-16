@@ -442,5 +442,9 @@ export class Parser {
             (stack[slen - 4] as PunctuationToken).punctuation == PunctuationType.Question &&
             stack[slen - 5] instanceof ExprAST);
     } //}
+
+    parseDeclaration(): ExprAST {
+        return null;
+    }
 }
 
