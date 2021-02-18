@@ -453,7 +453,7 @@ export class CompoundLiteralExprAST extends ExprAST {
 export enum TypeQualifier {Const, Restrict, Volatile}
 export enum TypeSpecifier {
     Struct, Union, Enum, Void, Integer, Float,
-    Array, Pointer, Function
+    Array, Pointer, Function, Typedefed
 }
 export class TypeExprAST extends BasicAST {
     qualifier: TypeQualifier[];
@@ -549,6 +549,15 @@ export class FunctionTypeExprAST extends TypeExprAST {
     constructor() {
         super(TypeSpecifier.Function);
         this.argumentsType = [];
+    }
+}
+
+export class TypedefedTypeExprAST extends TypeExprAST {
+    readonly name: string;
+
+    constructor(name: string) {
+        super(TypeSpecifier.Typedefed);
+        this.name = name;
     }
 }
 

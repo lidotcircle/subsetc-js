@@ -1,4 +1,4 @@
-import { ArrayIndexExprAST, BinaryExprASTType, ExprAST, ExprASTType, FloatPointExprAST, FunctionCallASTType, FunctionCallExprAST, IntegerExprAST, OperatorPriorityGreaterEqual, OperatorTokenToBinaryExprASTType, OperatorTokenToUnaryPrefixExprASTType, OperatorTokenToUnarySuffixExprASTType, StringExprAST, TenaryExprASTType, UnaryExprASTType, VariableExprAST, ZeronaryASTType } from "./ast";
+import { ArrayIndexExprAST, BinaryExprASTType, EnumTypeExprAST, ExprAST, ExprASTType, FloatPointExprAST, FloatPointTypeExprAST, FunctionCallASTType, FunctionCallExprAST, IntegerExprAST, IntegerTypeExprAST, OperatorPriorityGreaterEqual, OperatorTokenToBinaryExprASTType, OperatorTokenToUnaryPrefixExprASTType, OperatorTokenToUnarySuffixExprASTType, StringExprAST, StructTypeExprAST, TenaryExprASTType, TypeExprAST, UnaryExprASTType, UnionTypeExprAST, VariableExprAST, VoidTypeExprAST, ZeronaryASTType } from "./ast";
 import { FloatToken, IdentifierToken, IntegerToken, OperatorToken, OperatorType, PunctuationToken, PunctuationType, StringToken, Token, Tokenizor, TokenType } from "./tokenizor";
 import assert from 'assert';
 
@@ -443,8 +443,100 @@ export class Parser {
             stack[slen - 5] instanceof ExprAST);
     } //}
 
-    parseDeclaration(): ExprAST {
+    parseDeclaration(): TypeExprAST {
+        if(this.tokenizor.front == null) {
+            this.tokenizor.next();
+        }
+        const stack: (TypeExprAST | Token)[] = [];
+
+        for(let token = this.tokenizor.front;;
+            this.tokenizor.next(), token = this.tokenizor.front) 
+        {
+            switch(token.token_type) {
+                case TokenType.STRUCT: {
+                    const ast = new StructTypeExprAST();
+                    stack.push(ast);
+                } break;
+                case TokenType.UNION: {
+                    const ast = new UnionTypeExprAST();
+                    stack.push(ast);
+                } break;
+                case TokenType.ENUM: {
+                    const ast = new EnumTypeExprAST();
+                    stack.push(ast);
+                } break;
+                case TokenType.ID: {
+                    stack.push(token);
+                    this.declarationCheckID(stack);
+                } break;
+                case TokenType.VOID: {
+                    const ast = new VoidTypeExprAST();
+                    stack.push(ast);
+                } break;
+                case TokenType.CHAR: {
+                    const ast = new IntegerTypeExprAST();
+                    ast.integerSize = 1
+                    stack.push(ast);
+                } break;
+                case TokenType.INT: {
+                    const ast = new IntegerTypeExprAST();
+                    ast.integerSize = 4;
+                    stack.push(ast);
+                } break;
+                case TokenType.FLOAT: {
+                    const ast = new FloatPointTypeExprAST();
+                    ast.floatPointSize = 4;
+                    stack.push(ast);
+                } break;
+                case TokenType.DOUBLE: {
+                    const ast = new FloatPointTypeExprAST();
+                    ast.floatPointSize = 8;
+                    stack.push(ast);
+                } break;
+
+                case TokenType.SHORT:
+                case TokenType.LONG:
+                case TokenType.SIGNED:
+                case TokenType.UNSIGNED: {
+                    stack.push(token);
+                    this.declarationCheckIntegerProp(stack);
+                } break;
+
+                case TokenType.TYPEDEF:
+                case TokenType.EXTERN:
+                case TokenType.STATIC:
+                case TokenType.AUTO:
+                case TokenType.REGISTER: {
+                    stack.push(token);
+                    this.declarationCheckStorageClass(stack);
+                } break;
+
+                case TokenType.CONST:
+                case TokenType.VOLATILE:
+                case TokenType.RESTRICT: {
+                    stack.push(token);
+                    this.declarationCheckStorageClass(stack);
+                } break;
+            }
+        }
         return null;
+    }
+
+    /**
+     * TypeSpecifier := S[opt] Q[opt] (Typedefed | Struct | Union | Enum | Integer | Float)
+     * DeclaratorSpecifier := (Q[opt] P)[opt] 
+     */
+
+    declarationCheckID(stack: (TypeExprAST | Token)[]) {
+    }
+
+    declarationCheckIntegerProp(stack: (TypeExprAST | Token)[]) {
+    }
+
+    declarationCheckStorageClass(stack: (TypeExprAST | Token)[]) {
+    }
+
+    declarationCheckQualify(stack: (TypeExprAST | Token)[]) {
     }
 }
 
