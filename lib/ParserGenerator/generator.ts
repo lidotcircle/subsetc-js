@@ -254,7 +254,7 @@ export class ParserGenerator {
             ok = true;
             break;
         }
-        if(!ok) throw new Error('parse fail: not compiled');
+        if(!ok) throw new Error('parse error: not compiled');
 
         const statestack: number[] = [1];
         const symbolstack: ICharacter[] = [{name: '$'}];
@@ -265,8 +265,18 @@ export class ParserGenerator {
             tokenizer.next(), token=tokenizer.current(), consumed++) 
         {
             this.pushNewCharacter(tokenizer, statestack, symbolstack, token);
+
+            if(symbolstack.length == 2 && 
+               stopSymbolName != null && 
+               symbolstack[1].name == stopSymbolName) 
+            {
+                break;
+            }
         }
 
+        if(symbolstack.length != 2) {
+            throw new Error('parse error: unexpected finish');
+        }
         return consumed;
     } //}
     private pushNewCharacter(tokenizer: ITokenizer, //{
@@ -276,7 +286,7 @@ export class ParserGenerator {
         const state = statestack[statestack.length - 1];
         const nextstep = this.StateCharNext2StateRule[this.stateChar2str(state, character.name)];
         if(nextstep == null) {
-            throw new Error(`parse error in ${character.name}`);
+            throw new Error(`parse error: in ${character.name}`);
         }
 
         if(nextstep[2] != null) {
@@ -288,7 +298,7 @@ export class ParserGenerator {
             if(nextnextstep == null ||
                (nextnextstep[0] == null && nextnextstep[1] == null)) 
             {
-                throw new Error(`parse error in ${character.name}`);
+                throw new Error(`parse error: in ${character.name}`);
             } else if (nextnextstep[1] != null) {
                 this.reduceStackByRule(tokenizer, nextnextstep[1], statestack, symbolstack, character);
             } else {
@@ -327,8 +337,12 @@ export class ParserGenerator {
         this.pushNewCharacter(tokenizer, statestack, symbolstack, newNT);
     } //}
 
-    dump() {
+    save() {
         return JSON.stringify(this.StateCharNext2StateRule, null, 2);
+    }
+
+    load(dt: string) {
+        this.StateCharNext2StateRule = JSON.parse(dt);
     }
 }
 

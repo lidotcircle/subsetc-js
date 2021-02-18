@@ -63,5 +63,19 @@ describe('compile', () => {
             {name: ')'}, 
         ]));
     });
+
+    test('C declaration', () => {
+        const parser = new ParserGenerator();
+        parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: '+', priority: 2}, {name: 'Expr'}], printReduce);
+        parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: '-', priority: 2}, {name: 'Expr'}], printReduce);
+        parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: '*', priority: 1}, {name: 'Expr'}], printReduce);
+        parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: '/', priority: 1}, {name: 'Expr'}], printReduce);
+        parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: ',', priority: 3}, {name: 'Expr'}], printReduce);
+        parser.addRule({name: 'Expr'}, [{name: '('}, {name: 'Expr'}, {name: ')'}], printReduce);
+        parser.addRule({name: 'Expr'}, [{name: 'Id'}], printReduce);
+        parser.compile();
+
+        parser.parse(new DummyTokenizer(['Id', '+', 'Id', ',', 'Id', '*', '(', 'Id', '+', 'Id', ')'].map(n => {return {name: n}})));
+    });
 });
 
