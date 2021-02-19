@@ -3,11 +3,9 @@ import assert from 'assert';
 
 export interface ICharacter {
     name: string;
-    priority?: number;
-    associative?: TerminalAssocitive;
+    optional?: boolean;
 }
 
-export enum TerminalAssocitive {Left, Right}
 export interface ITerminalCharacter extends ICharacter {
     end?: boolean;
 }
@@ -22,40 +20,92 @@ export interface ITokenizer {
 }
 
 
+export enum RuleAssocitive {Left, Right}
 export type ReduceCallback = (head: INotTermianlCharacter, body: ICharacter[]) => void;
-const EndSymbol = 'end';
+interface RuleOptions {
+    callback?: ReduceCallback;
+    priority?: number;
+    associative?: RuleAssocitive;
+    uid?: string;
+}
+
+const EndSymbol = 'ParserEnd';
 //                                                     state          rule           lookahead
 type PushdownStateMapping = {[StateCharPair: string]: [number | null, number | null, PushdownStateMapping | null]};
-type PushdownState = Set<string>;
+type PushdownState = [number, number][];
 export class ParserGenerator {
-    private rules: [INotTermianlCharacter, ICharacter[], ReduceCallback][] = [];
+    private rules: [INotTermianlCharacter, ICharacter[], RuleOptions][] = [];
     private nonterms: Set<string> = new Set<string>();
-    private terms: Map<string, {priority: number, associative: TerminalAssocitive}> = new Map();
+    private terms: Set<string> = new Set<string>();
+    private CompulsoryPriority: {[key: string]: Set<string>} = {};
+    private uid2rules: {[key: string]: Set<number>} = {};
+    private nonterm2rules: {[key: string]: Set<number>} = {};
 
     constructor() {
-        this.terms.set(EndSymbol, {priority: null, associative: TerminalAssocitive.Left});
+        this.terms.add(EndSymbol);
     }
-    addRule(nonTerm: INotTermianlCharacter, chars: ICharacter[], callback?: ReduceCallback) //{
+
+    addRule(nonTerm: INotTermianlCharacter, chars: ICharacter[], options?: RuleOptions) //{
     {
-        this.rules.push([nonTerm, chars, callback]);
+        const __options = {};
+        Object.assign(__options, options);
+        if(options.uid) {
+            assert.equal(this.uid2rules[options.uid], null);
+        }
+        this.extraOptionalRules(chars).forEach(body => this.__addRule(nonTerm, body, __options));
+    } //}
+    private __addRule(nonTerm: INotTermianlCharacter, chars: ICharacter[], options: RuleOptions) //{
+    {
+        assert.equal(chars.length > 0, true);
+        this.rules.push([nonTerm, chars, options]);
         this.nonterms.add(nonTerm.name);
+        this.nonterm2rules[nonTerm.name] = this.nonterm2rules[nonTerm.name] || new Set();
+        this.nonterm2rules[nonTerm.name].add(this.rules.length - 1);
+        if(options.uid) {
+            this.uid2rules[options.uid] = this.nonterm2rules[options.uid] || new Set();
+            this.uid2rules[options.uid].add(this.rules.length - 1);
+        }
+
         if(this.terms.has(nonTerm.name)) {
             this.terms.delete(nonTerm.name);
         }
         chars.forEach(char => {
             if(!this.nonterms.has(char.name)) {
-                if(this.terms.has(char.name)) {
-                    const vs = this.terms.get(char.name);
-                    assert.equal(vs.priority,    char.priority);
-                    assert.equal(vs.associative, char.associative);
-                }
-
-                this.terms.set(char.name, {
-                    priority:    char.priority, 
-                    associative: char.associative
-                });
+                this.terms.add(char.name);
             }
         });
+    } //}
+    private extraOptionalRules(chars: ICharacter[]) //{
+    {
+        assert.equal(chars.length > 0, true);
+        const ans: ICharacter[][] = [];
+        ans[0] = [chars[0]];
+        if(chars[0].optional) ans[1] = [];
+
+        for(let i=1;i<chars.length;i++) {
+            const char = chars[i];
+            const l = ans.length;
+
+            if(char.optional) {
+                for(let i=0;i<l;i++) {
+                    ans.push(ans[i].slice());
+                }
+            }
+
+            for(let i=0;i<l;i++) {
+                ans[i].push(char);
+            }
+        }
+
+        return ans;
+    } //}
+
+    addExtraPriority(lowerRuleuid: string, higherRuleuid: string) //{
+    {
+        assert.notEqual(this.uid2rules[lowerRuleuid], null);
+        assert.notEqual(this.uid2rules[higherRuleuid], null);
+        this.CompulsoryPriority[lowerRuleuid] = this.CompulsoryPriority[lowerRuleuid] || new Set<string>();
+        this.CompulsoryPriority[lowerRuleuid].add(higherRuleuid);
     } //}
 
     private StateCharNext2StateRule: PushdownStateMapping = {};
@@ -66,15 +116,15 @@ export class ParserGenerator {
         const termsymbols = symbols.slice();
         for(const nonterm of this.nonterms.keys()) symbols.push(nonterm);
 
-        const unseeStates: PushdownState[] = [new Set()];
+        const unseeStates: PushdownState[] = [[]];
 
         let stateID: number = 0;
         const stateidMap: Map<string, number> = new Map();
         const tryAssignStateId = (state: PushdownState): number => {
             const str = this.stateset2str(state);
-            /** dump stateset assignment
+            /*
             if(!stateidMap.has(str)) {
-                console.log(stateID + 1, str);
+                console.log('assign ', state, stateID + 1);
             }
             */
             return stateidMap.has(str) ? stateidMap.get(str) : (stateidMap.set(str, ++stateID), stateID);
@@ -89,10 +139,9 @@ export class ParserGenerator {
 
             for(const term of symbols) {
                 const newstateset = this.statesetGoto(state, term);
-                const sset = this.array2stateset(newstateset);
-                const newstateid = tryAssignStateId(sset);
+                const newstateid = tryAssignStateId(newstateset);
                 if(!lookedstate.has(newstateid)) {
-                    unseeStates.push(sset);
+                    unseeStates.push(newstateset);
                 }
 
                 if(newstateset.length == 0) {
@@ -110,29 +159,75 @@ export class ParserGenerator {
 
                     if(full.length > 0) {
                         let heighest: number = full[0];
-                        let prh = this.rulePriority(heighest);
+                        let prh = this.ruleOptions(heighest);
 
                         for(let vv of full) {
-                            const pv = this.rulePriority(vv);
-                            if(prh == null || pv > prh) {
+                            const pv = this.ruleOptions(vv);
+                            if(prh.priority == null || 
+                               pv.priority > prh.priority || 
+                               (pv.priority == prh.priority && pv.associative == RuleAssocitive.Left)) 
+                            {
                                 heighest = vv;
                                 prh = pv;
                             }
                         }
 
-                        if(prh != null) {
+                        {
+                            const hrule = this.ruleOptions(heighest);
+                            if(hrule.uid && this.CompulsoryPriority[hrule.uid]) {
+                                const exempt_rules = new Set<number>();
+                                for(const huid of this.CompulsoryPriority[hrule.uid]) {
+                                    for(const k of this.uid2rules[huid].keys()) {
+                                        exempt_rules.add(k);
+                                    }
+                                }
+
+                                let setexempt: boolean = false;
+                                for(const r of full) {
+                                    if(exempt_rules.has(r)) {
+                                        assert.equal(setexempt, false, 'compile fail, invalid rule');
+                                        setexempt = true;
+                                        heighest = r;
+                                        prh = this.ruleOptions(heighest);
+                                    }
+                                }
+                            }
+                        }
+
+                        let nreduce=0;
+                        for(let vv of full) {
+                            const pv = this.ruleOptions(vv);
+                            if(pv.priority == prh.priority && pv.associative == prh.associative) {
+                                nreduce++;
+                            }
+                        }
+
+                        if(prh.priority != null) {
                             const mapping: PushdownStateMapping = {};
                             this.StateCharNext2StateRule[this.stateChar2str(current_stateid, term)] = [null, null, mapping];
 
                             for(const tlook of termsymbols) {
                                 // lookahead
-                                const p = this.termProperty(tlook);
-                                if(p.priority == null || 
-                                   p.priority > prh || 
-                                   (p.priority == prh && p.associative != TerminalAssocitive.Right)) 
+                                const aheadstate = this.statesetGoto(newstateset, tlook);
+                                let moststrict: RuleOptions;
+                                for(const st of aheadstate) {
+                                    // TODO
+                                    const op = this.rules[st[0]][2];
+                                    if(!moststrict || 
+                                        op.priority < moststrict.priority ||
+                                        (op.priority == moststrict.priority && op.associative == RuleAssocitive.Right))
+                                    {
+                                        moststrict = op;
+                                    }
+                                }
+
+                                if(moststrict == null || 
+                                   moststrict.priority > prh.priority || 
+                                   (moststrict.priority == prh.priority && moststrict.associative != RuleAssocitive.Right)) 
                                 {
                                     // reduce
                                     mapping[tlook] = [null, heighest, null];
+                                    if(nreduce > 1) throw new Error('confict rule in reduce');
                                 } else {
                                     // shift
                                     mapping[tlook] = [newstateid, null, null];
@@ -141,6 +236,7 @@ export class ParserGenerator {
                         } else {
                             // reduce
                             this.StateCharNext2StateRule[this.stateChar2str(current_stateid, term)] = [null, heighest, null];
+                            if(nreduce > 1) throw new Error('confict rule in reduce');
                         }
                     } else {
                         // shift
@@ -150,101 +246,114 @@ export class ParserGenerator {
             }
         }
     } //}
-    private statesetGoto(oldstate: PushdownState, ichar: string): [number, number][] //{
+    private save_state_go: Map<string, PushdownState> = new Map();
+    private from_save_state_go(sstr: string) {
+        const ans = [];
+        this.save_state_go.get(sstr).forEach(val => ans.push(val.slice()));
+        return ans;
+    }
+    private statesetGoto(oldstate: PushdownState, ichar: string): PushdownState //{
     {
-        const newstateset: [number, number][] = [];
+        const sstr = this.stateset2str(oldstate) + '@' + ichar;
+        if(this.save_state_go.has(sstr)) {
+            return this.from_save_state_go(sstr);
+        }
 
-        for(const iis of oldstate.keys()) {
-            const ppa = this.str2rulePos(iis);
+        const newstateset: [number, number][] = [];
+        const validNonTerm: Set<string> = new Set();
+        const isstart = this.isStartState(oldstate);
+
+        for(const ppa of oldstate) {
             const rule = this.rules[ppa[0]];
             assert.notEqual(rule, null, 'unexpected rule');
             const pos = ppa[1];
 
-            if(rule[1].length > pos && rule[1][pos].name == ichar) {
-                newstateset.push([ppa[0], pos + 1]);
+            if(rule[1].length > pos) {
+                if(rule[1][pos].name == ichar) {
+                    newstateset.push([ppa[0], pos + 1]);
+                }
+                if(this.isNonTerm(rule[1][pos].name)) {
+                    validNonTerm.add(rule[1][pos].name);
+                }
             }
         }
 
-        for(let ir in this.rules) {
+        let cont: boolean = true;
+        while(cont) {
+            const sizeo = validNonTerm.size;
+            for(let i=0;i<this.rules.length;i++) {
+                if(validNonTerm.has(this.rules[i][0].name) && 
+                   this.isNonTerm(this.rules[i][1][0].name)) 
+                {
+                    validNonTerm.add(this.rules[i][1][0].name);
+                }
+            }
+            cont = sizeo != validNonTerm.size;
+        }
+
+        for(let ir=0;ir<this.rules.length;ir++) {
+            if(!isstart && !validNonTerm.has(this.rules[ir][0].name)) {
+                continue;
+            }
+
             const rule = this.rules[ir];
             if(rule[1][0].name == ichar) {
-                newstateset.push([parseInt(ir), 1]);
+                newstateset.push([ir, 1]);
             }
         }
 
-        return newstateset;
-    } //}
-
-    private rulePriority(rulen: number): number | null //{
-    {
-        let ans = null;
-
-        for(const item of this.rules[rulen][1]) {
-            if(item.priority != null && (ans == null || item.priority > ans)) {
-                ans = item.priority;
+        newstateset.sort((a, b) => {
+            if(a[0] < b[0]) {
+                return -1;
+            } else if (a[0] > b[0]) {
+                return  1;
+            } else {
+                if(a[1] < b[1]) {
+                    return -1;
+                } else if (a[1] > b[1]) {
+                    return 1;
+                } else {
+                    return 0;
+                }
             }
-        }
+        });
 
-        return ans;
-    } //}
-    private leftAssociative(rulen: number): boolean //{
-    {
-        for(const item of this.rules[rulen][1].reverse()) {
-            if(item.associative == TerminalAssocitive.Right) {
-                return false;
+        const ans: PushdownState = [];
+        let prev;
+        for(const s of newstateset) {
+            if(prev && s[0] == prev[0] && s[1] == prev[1]) {
+                continue;
             }
+            prev = s;
+            ans.push(s);
         }
 
-        return true;
+        this.save_state_go.set(sstr, ans);
+        return this.from_save_state_go(sstr);
     } //}
-    private termProperty(term: string): {priority: number; associative: TerminalAssocitive} //{
-    {
-        if(!this.terms.has(term)) {
-            throw new Error('undefined terminal character');
-        }
+    private isStartState(state: PushdownState): boolean {return state.length == 0;}
+    private isNonTerm(chari: string): boolean {return this.nonterms.has(chari);}
 
-        return this.terms.get(term);
+    private ruleOptions(rulen: number): RuleOptions //{
+    {
+        return this.rules[rulen][2];
     } //}
 
     private stateChar2str(state: number, term: string) //{
     {
         return `${state}#${term}`;
     } //}
-    private array2stateset(array: [number, number][]) //{
-    {
-        const ans = new Set<string>();
-        for(const s of array) {
-            ans.add(this.rulePosi2str(...s));
-        }
-
-        return ans;
-    } //}
     private stateset2str(stateset: PushdownState): string //{
     {
         let ans = 'stateset';
-        let s = [];
-        for(const k of stateset.keys()) s.push(k);
-        s.sort();
-        for(const k of s) {
-            ans += `${k}@`;
+        for(const k of stateset) {
+            ans += `@${this.rulePosi2str(k[0], k[1])}`;
         }
         return ans;
     } //}
     private rulePosi2str(rule: number, pos: number) //{
     {
         return `${rule}:${pos}`;
-    } //}
-    private str2rulePos(rulepos: string): [number, number] //{
-    {
-        const _ans = rulepos.split(':');
-        assert.equal(_ans.length, 2);
-        const ans = [parseInt(_ans[0]), parseInt(_ans[1])];
-        return ans as [number, number];
-    } //}
-
-    private isNonTerm(name: string): boolean //{
-    {
-        return this.nonterms.has(name);
     } //}
 
     parse(tokenizer: ITokenizer, stopSymbolName?: string): number //{
@@ -286,6 +395,7 @@ export class ParserGenerator {
         const state = statestack[statestack.length - 1];
         const nextstep = this.StateCharNext2StateRule[this.stateChar2str(state, character.name)];
         if(nextstep == null) {
+            console.error(statestack, symbolstack);
             throw new Error(`parse error: in ${character.name}`);
         }
 
@@ -319,11 +429,7 @@ export class ParserGenerator {
                               symbolstack: ICharacter[], sym: ICharacter)
     {
         const rule = this.rules[rulen];
-        const newNT = {
-            name: rule[0].name,
-            priority: rule[0].priority,
-            associative: rule[0].associative,
-        };
+        const newNT = {name: rule[0].name};
 
         const n = rule[1].length - 1;
         assert.equal(n >= 0, true);
@@ -333,7 +439,9 @@ export class ParserGenerator {
         const symbols = symbolstack.splice(symbolstack.length - n, n);
         symbols.push(sym);
 
-        rule[2](newNT, symbols);
+        if(rule[2] && rule[2].callback) {
+            rule[2].callback(newNT, symbols);
+        }
         this.pushNewCharacter(tokenizer, statestack, symbolstack, newNT);
     } //}
 
