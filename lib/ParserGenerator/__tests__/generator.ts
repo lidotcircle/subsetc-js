@@ -37,7 +37,7 @@ function printReduce(nt: INotTermianlCharacter, ts: ICharacter[]) {
 
     print += ' => ';
     print += nt.name;
-    console.log(print);
+    // console.log(print);
 }
 
 describe('compile', () => {

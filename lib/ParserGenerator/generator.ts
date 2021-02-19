@@ -47,9 +47,9 @@ export class ParserGenerator {
 
     addRule(nonTerm: INotTermianlCharacter, chars: ICharacter[], options?: RuleOptions) //{
     {
-        const __options = {};
+        const __options: RuleOptions = {};
         Object.assign(__options, options);
-        if(options.uid) {
+        if(__options.uid) {
             assert.equal(this.uid2rules[options.uid], null);
         }
         this.extraOptionalRules(chars).forEach(body => this.__addRule(nonTerm, body, __options));
@@ -395,7 +395,13 @@ export class ParserGenerator {
         const state = statestack[statestack.length - 1];
         const nextstep = this.StateCharNext2StateRule[this.stateChar2str(state, character.name)];
         if(nextstep == null) {
-            console.error(statestack, symbolstack);
+            tokenizer.next();
+            if(tokenizer.current().end) {
+                symbolstack.push(character);
+                return;
+            }
+
+            console.error(statestack, symbolstack, character);
             throw new Error(`parse error: in ${character.name}`);
         }
 
@@ -439,6 +445,7 @@ export class ParserGenerator {
         const symbols = symbolstack.splice(symbolstack.length - n, n);
         symbols.push(sym);
 
+        // printReduce(newNT, symbols);
         if(rule[2] && rule[2].callback) {
             rule[2].callback(newNT, symbols);
         }
@@ -452,5 +459,18 @@ export class ParserGenerator {
     load(dt: string) {
         this.StateCharNext2StateRule = JSON.parse(dt);
     }
+}
+
+function printReduce(nt: INotTermianlCharacter, ts: ICharacter[]) {
+    let print = '[ ';
+    for(let i in ts) {
+        const t = ts[i];
+        print += t.name;
+        if(parseInt(i) != ts.length - 1) print += ' ';
+    }
+
+    print += ' ] => ';
+    print += nt.name;
+    console.log(print);
 }
 
