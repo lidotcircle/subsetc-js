@@ -52,7 +52,20 @@ describe('cparser test', () => {
     shouldpass('const enum uu vv(int m, int v, int k);');
     shouldpass('const enum uu (*vv)(int);');
 
-    shouldpass('a + b');
-    shouldpass('a++ + b-- + f(1, 2, 3) + uv[(22 + 33 / 44)] + uu . m + uu -> n + --c + ++c + -c + +c + !c + ~c + *b + &c * 2 / 2 % 2 + v << 4 >> 5 + 5 < 6 + 7 > 9 + 5 >= 6 + 7 <= 7 + 8 != 0 + 9 == 10 & 22 ^ 11 && 20 || ***cv + (a ? b : 0) + (a = b) + (a += b) + (a -= b) + (a *= b) + (a /= b) + (a %= b) + (a <<= b) + (a >>= b) + (a &= b) + (a ^= b) + (a |= b)');
+    shouldpass(`int main() {
+        a + b;
+    }`);
+    shouldpass(
+    `int main() {
+        a++ + b-- + f(1, 2, 3) + uv[(22 + 33 / 44)] + uu . m + uu -> n + --c + 
+        ++c + -c + +c + !c + ~c + *b + &c * 2 / 2 % 2 + v << 4 >> 5 + 5 < 6 + 
+        7 > 9 + 5 >= 6 + 7 <= 7 + 8 != 0 + 9 == 10 & 22 ^ 11 && 20 || ***cv + 
+        (a ? b : 0) + (a = b) + (a += b) + (a -= b) + (a *= b) + (a /= b) + 
+        (a %= b) + (a <<= b) + (a >>= b) + (a &= b) + (a ^= b) + (a |= b);
+    }`);
+
+    shouldpass(`int main() {
+        a + b;
+    }`);
 });
 

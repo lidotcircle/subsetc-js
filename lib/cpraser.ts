@@ -42,6 +42,14 @@ enum NonTermSymbol {
     TypedefName = 'TypedefName', InitializerList = 'InitializerList',
     Designation = 'Designation', DesignatorList = 'DesignatorList',
     Designator = 'Designator',
+
+    Statement = 'Statement', LabeledStatement = 'LabeledStatement',
+    CompoundStatement = 'CompoundStatement', ExpressionStatement = 'ExpressionStatement',
+    SelectionStatement = 'SelectionStatement', IterationStatement = 'IterationStatement',
+    JumpStatement = 'JumpStatement', BlockItemList = 'BlockItemList', BlockItem = 'BlockItem',
+
+    TranslationUnit = 'TranslationUnit', ExternalDeclaration = 'ExternalDeclaration',
+    FunctionDefinition = 'FunctionDefinition', DeclarationList = 'DeclarationList',
 }
 
 export class CParser {
@@ -58,8 +66,7 @@ export class CParser {
 
     private InitParser() //{
     {
-        this.parser.addStartSymbol(NonTermSymbol.Declaration);
-        this.parser.addStartSymbol(NonTermSymbol.Expression);
+        this.parser.addStartSymbol(NonTermSymbol.TranslationUnit);
 
         // Expressions
         this.GrammarExpr();
@@ -68,12 +75,10 @@ export class CParser {
         this.GrammarDeclaration();
 
         // Statements
-        this.GrammarBasicStatement();
-        this.GrammarIfStatement();
-        this.GrammarForStatement();
-        this.GrammarWhileStatement();
-        this.GrammarDoWhileStatement();
-        this.GrammarSwitchStatement();
+        this.GrammarStatement();
+
+        // External Definitions
+        this.GrammarExternalDefinitions();
 
         this.parser.compile();
     } //}
@@ -768,59 +773,166 @@ export class CParser {
         ]);
     } //}
 
-    private GrammarBasicStatement() //{
+    private GrammarStatement() //{
     {
-        this.parser.addRule({name: 'Expr'}, [{name: TokenType.BREAK}]);
-        this.parser.addRule({name: 'Expr'}, [{name: TokenType.CONTINUE}]);
+        // (6.8)
+        [
+            NonTermSymbol.LabeledStatement, NonTermSymbol.CompoundStatement,
+            NonTermSymbol.ExpressionStatement, NonTermSymbol.SelectionStatement,
+            NonTermSymbol.IterationStatement, NonTermSymbol.JumpStatement
+        ].forEach(tt => this.parser.addRule({name: NonTermSymbol.Statement}, [{name: tt}]));
 
-        this.parser.addRule({name: 'Statement'}, [
-            {name: 'Expr', optional: true},
-            {name: TokenType.Semicolon}
+        // (6.8.1)
+        this.parser.addRule({name: NonTermSymbol.LabeledStatement}, [
+            {name: TokenType.ID},
+            {name: TokenType.Colon},
+            {name: NonTermSymbol.Statement},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.LabeledStatement}, [
+            {name: TokenType.CASE},
+            {name: NonTermSymbol.ConstantExpression},
+            {name: TokenType.Colon},
+            {name: NonTermSymbol.Statement},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.LabeledStatement}, [
+            {name: TokenType.DEFAULT},
+            {name: TokenType.Colon},
+            {name: NonTermSymbol.Statement},
         ]);
 
-        this.parser.addRule({name: 'Statement'}, [
-            {name: 'Exprlist'},
-            {name: TokenType.Semicolon}
-        ]);
-        this.parser.addRule({name: 'Statement'}, [
-            {name: 'Block'}
-        ]);
-
-        this.parser.addRule({name: 'Block'}, [
+        // (6.8.2)
+        this.parser.addRule({name: NonTermSymbol.CompoundStatement}, [
             {name: TokenType.lCBracket},
-            {name: 'Statement'},
+            {name: NonTermSymbol.BlockItemList, optional: true},
             {name: TokenType.rCBracket},
         ]);
-        this.parser.addRule({name: 'Block'}, [
-            {name: TokenType.lCBracket},
-            {name: 'StatementList', optional: true},
-            {name: TokenType.rCBracket},
+        this.parser.addRule({name: NonTermSymbol.BlockItemList}, [
+            {name: NonTermSymbol.BlockItemList, optional: true},
+            {name: NonTermSymbol.BlockItem},
         ]);
-        this.parser.addRule({name: 'StatementList'}, [
-            {name: 'Statement'},
-            {name: TokenType.Comma},
-            {name: 'Statement'},
+        this.parser.addRule({name: NonTermSymbol.BlockItem}, [
+            {name: NonTermSymbol.Declaration},
         ]);
-        this.parser.addRule({name: 'StatementList'}, [
-            {name: 'StatementList'},
-            {name: TokenType.Comma},
-            {name: 'Statement'},
+        this.parser.addRule({name: NonTermSymbol.BlockItem}, [
+            {name: NonTermSymbol.Statement},
+        ]);
+
+        // (6.8.3)
+        this.parser.addRule({name: NonTermSymbol.ExpressionStatement}, [
+            {name: NonTermSymbol.Expression},
+            {name: TokenType.Semicolon},
+        ]);
+
+        // (6.8.4)
+        this.parser.addRule({name: NonTermSymbol.SelectionStatement}, [
+            {name: TokenType.IF},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.Expression},
+            {name: TokenType.rRBracket},
+            {name: NonTermSymbol.Statement},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.SelectionStatement}, [
+            {name: TokenType.IF},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.Expression},
+            {name: TokenType.rRBracket},
+            {name: NonTermSymbol.Statement},
+            {name: TokenType.ELSE},
+            {name: NonTermSymbol.Statement},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.SelectionStatement}, [
+            {name: TokenType.SWITCH},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.Expression},
+            {name: TokenType.rRBracket},
+            {name: NonTermSymbol.Statement},
+        ]);
+
+        // (6.8.5)
+        this.parser.addRule({name: NonTermSymbol.IterationStatement}, [
+            {name: TokenType.WHILE},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.Expression},
+            {name: TokenType.rRBracket},
+            {name: NonTermSymbol.Statement},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.IterationStatement}, [
+            {name: TokenType.DO},
+            {name: NonTermSymbol.Statement},
+            {name: TokenType.WHILE},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.Expression},
+            {name: TokenType.rRBracket},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.IterationStatement}, [
+            {name: TokenType.FOR},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.Expression, optional: true},
+            {name: TokenType.Semicolon},
+            {name: NonTermSymbol.Expression, optional: true},
+            {name: TokenType.Semicolon},
+            {name: NonTermSymbol.Expression, optional: true},
+            {name: TokenType.rRBracket},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.IterationStatement}, [
+            {name: TokenType.FOR},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.Declaration},
+            {name: NonTermSymbol.Expression, optional: true},
+            {name: TokenType.Semicolon},
+            {name: NonTermSymbol.Expression, optional: true},
+            {name: TokenType.rRBracket},
+        ]);
+
+        // (6.8.6)
+        this.parser.addRule({name: NonTermSymbol.JumpStatement}, [
+            {name: TokenType.GOTO},
+            {name: TokenType.ID},
+            {name: TokenType.Semicolon},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.JumpStatement}, [
+            {name: TokenType.CONTINUE},
+            {name: TokenType.Semicolon},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.JumpStatement}, [
+            {name: TokenType.BREAK},
+            {name: TokenType.Semicolon},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.JumpStatement}, [
+            {name: TokenType.RETURN},
+            {name: NonTermSymbol.Expression, optional: true},
+            {name: TokenType.Semicolon},
         ]);
     } //}
-    private GrammarIfStatement() //{
+
+    private GrammarExternalDefinitions() //{
     {
-    } //}
-    private GrammarForStatement() //{
-    {
-    } //}
-    private GrammarWhileStatement() //{
-    {
-    } //}
-    private GrammarDoWhileStatement() //{
-    {
-    } //}
-    private GrammarSwitchStatement() //{
-    {
+        // (6.9)
+        this.parser.addRule({name: NonTermSymbol.TranslationUnit}, [
+            {name: NonTermSymbol.TranslationUnit, optional: true},
+            {name: NonTermSymbol.ExternalDeclaration},
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.ExternalDeclaration}, [
+            {name: NonTermSymbol.FunctionDefinition},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.ExternalDeclaration}, [
+            {name: NonTermSymbol.Declaration},
+        ]);
+
+        // (6.9.1)
+        this.parser.addRule({name: NonTermSymbol.FunctionDefinition}, [
+            {name: NonTermSymbol.DeclarationSpecifiers},
+            {name: NonTermSymbol.Declarator},
+            {name: NonTermSymbol.DeclarationList, optional: true},
+            {name: NonTermSymbol.CompoundStatement},
+        ], {priority: 1});
+
+        // (6.9.2)
+        this.parser.addRule({name: NonTermSymbol.DeclarationList}, [
+            {name: NonTermSymbol.DeclarationList, optional: true},
+            {name: NonTermSymbol.Declaration},
+        ]);
     } //}
 
     feed(text: string) {
