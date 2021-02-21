@@ -37,7 +37,7 @@ function printReduce(nt: INotTermianlCharacter, ts: ICharacter[]) {
 
     print += ' => ';
     print += nt.name;
-    // console.log(print);
+    console.log(print);
 }
 
 describe('compile', () => {
@@ -49,6 +49,7 @@ describe('compile', () => {
         parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: '/'}, {name: 'Expr'}], {callback: printReduce, priority: 1});
         parser.addRule({name: 'Expr'}, [{name: '('}, {name: 'Expr'}, {name: ')'}],    {callback: printReduce});
         parser.addRule({name: 'Expr'}, [{name: 'Id'}], {callback: printReduce});
+        parser.addStartSymbol('Expr');
         parser.compile();
 
         parser.parse(new DummyTokenizer([
@@ -65,21 +66,5 @@ describe('compile', () => {
             {name: ')'}, 
         ]));
     });
-
-    /*
-    test('C declaration', () => {
-        const parser = new ParserGenerator();
-        parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: '+', priority: 2}, {name: 'Expr'}], printReduce);
-        parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: '-', priority: 2}, {name: 'Expr'}], printReduce);
-        parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: '*', priority: 1}, {name: 'Expr'}], printReduce);
-        parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: '/', priority: 1}, {name: 'Expr'}], printReduce);
-        parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: ',', priority: 3, optional: true}, {name: 'Expr'}], printReduce);
-        parser.addRule({name: 'Expr'}, [{name: '('}, {name: 'Expr'}, {name: ')'}], printReduce);
-        parser.addRule({name: 'Expr'}, [{name: 'Id'}], printReduce);
-        parser.compile();
-
-        parser.parse(new DummyTokenizer(['Id', '+', 'Id', ',', 'Id', '*', '(', 'Id', '+', 'Id', ')'].map(n => {return {name: n}})));
-    });
-    */
 });
 

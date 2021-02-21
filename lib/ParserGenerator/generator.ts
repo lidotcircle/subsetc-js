@@ -506,7 +506,7 @@ export class ParserGenerator {
         const symbols = symbolstack.splice(symbolstack.length - n, n);
         symbols.push(sym);
 
-        printReduce(newNT, symbols);
+        // printReduce(newNT, symbols);
         if(rule[2] && rule[2].callback) {
             rule[2].callback(newNT, symbols);
         }
