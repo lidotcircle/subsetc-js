@@ -40,14 +40,21 @@ export class ParserGenerator {
     private CompulsoryPriority: {[key: string]: Set<string>} = {};
     private uid2rules: {[key: string]: Set<number>} = {};
     private nonterm2rules: {[key: string]: Set<number>} = {};
+    private startSymbols: string[] = [];
 
     constructor() {
         this.terms.add(EndSymbol);
     }
 
+    addStartSymbol(...symbols: string[]): void {
+        symbols.forEach(sym => this.startSymbols.push(sym));
+    }
+
     addRule(nonTerm: INotTermianlCharacter, chars: ICharacter[], options?: RuleOptions) //{
     {
-        const __options: RuleOptions = {};
+        const __options: RuleOptions = {
+            associative: RuleAssocitive.Left,
+        };
         Object.assign(__options, options);
         if(__options.uid) {
             assert.equal(this.uid2rules[options.uid], null);
@@ -116,7 +123,7 @@ export class ParserGenerator {
         const termsymbols = symbols.slice();
         for(const nonterm of this.nonterms.keys()) symbols.push(nonterm);
 
-        const unseeStates: PushdownState[] = [[]];
+        const unseeStates: PushdownState[] = [this.startState()];
 
         let stateID: number = 0;
         const stateidMap: Map<string, number> = new Map();
@@ -129,129 +136,170 @@ export class ParserGenerator {
             */
             return stateidMap.has(str) ? stateidMap.get(str) : (stateidMap.set(str, ++stateID), stateID);
         }
-        const lookedstate = new Set<number>();
-        tryAssignStateId(unseeStates[0]);
+        const addedstates = new Set<number>();
+        addedstates.add(tryAssignStateId(unseeStates[0]));
 
         while(unseeStates.length > 0) {
             const state = unseeStates.shift();
             const current_stateid = tryAssignStateId(state);
-            lookedstate.add(current_stateid);
 
-            for(const term of symbols) {
-                const newstateset = this.statesetGoto(state, term);
-                const newstateid = tryAssignStateId(newstateset);
-                if(!lookedstate.has(newstateid)) {
-                    unseeStates.push(newstateset);
-                }
-
-                if(newstateset.length == 0) {
-                    this.StateCharNext2StateRule[this.stateChar2str(current_stateid, term)] = null;
-                } else {
-                    const full: number[] = [];
-
-                    for(const rulest of newstateset) {
-                        const rule = this.rules[rulest[0]];
-                        const pos = rulest[1];
-                        if(rule[1].length == pos) {
-                            full.push(rulest[0]);
-                        }
-                    }
-
-                    if(full.length > 0) {
-                        let heighest: number = full[0];
-                        let prh = this.ruleOptions(heighest);
-
-                        for(let vv of full) {
-                            const pv = this.ruleOptions(vv);
-                            if(prh.priority == null || 
-                               pv.priority > prh.priority || 
-                               (pv.priority == prh.priority && pv.associative == RuleAssocitive.Left)) 
-                            {
-                                heighest = vv;
-                                prh = pv;
-                            }
-                        }
-
-                        {
-                            const hrule = this.ruleOptions(heighest);
-                            if(hrule.uid && this.CompulsoryPriority[hrule.uid]) {
-                                const exempt_rules = new Set<number>();
-                                for(const huid of this.CompulsoryPriority[hrule.uid]) {
-                                    for(const k of this.uid2rules[huid].keys()) {
-                                        exempt_rules.add(k);
-                                    }
-                                }
-
-                                let setexempt: boolean = false;
-                                for(const r of full) {
-                                    if(exempt_rules.has(r)) {
-                                        assert.equal(setexempt, false, 'compile fail, invalid rule');
-                                        setexempt = true;
-                                        heighest = r;
-                                        prh = this.ruleOptions(heighest);
-                                    }
-                                }
-                            }
-                        }
-
-                        let nreduce=0;
-                        for(let vv of full) {
-                            const pv = this.ruleOptions(vv);
-                            if(pv.priority == prh.priority && pv.associative == prh.associative) {
-                                nreduce++;
-                            }
-                        }
-
-                        if(prh.priority != null) {
-                            const mapping: PushdownStateMapping = {};
-                            this.StateCharNext2StateRule[this.stateChar2str(current_stateid, term)] = [null, null, mapping];
-
-                            for(const tlook of termsymbols) {
-                                // lookahead
-                                const aheadstate = this.statesetGoto(newstateset, tlook);
-                                let moststrict: RuleOptions;
-                                for(const st of aheadstate) {
-                                    // TODO
-                                    const op = this.rules[st[0]][2];
-                                    if(!moststrict || 
-                                        op.priority < moststrict.priority ||
-                                        (op.priority == moststrict.priority && op.associative == RuleAssocitive.Right))
-                                    {
-                                        moststrict = op;
-                                    }
-                                }
-
-                                if(moststrict == null || 
-                                   moststrict.priority > prh.priority || 
-                                   (moststrict.priority == prh.priority && moststrict.associative != RuleAssocitive.Right)) 
-                                {
-                                    // reduce
-                                    mapping[tlook] = [null, heighest, null];
-                                    if(nreduce > 1) throw new Error('confict rule in reduce');
-                                } else {
-                                    // shift
-                                    mapping[tlook] = [newstateid, null, null];
-                                }
-                            }
-                        } else {
-                            // reduce
-                            this.StateCharNext2StateRule[this.stateChar2str(current_stateid, term)] = [null, heighest, null];
-                            if(nreduce > 1) throw new Error('confict rule in reduce');
-                        }
-                    } else {
-                        // shift
-                        this.StateCharNext2StateRule[this.stateChar2str(current_stateid, term)] = [newstateid, null, null];
-                    }
-                }
+            for(const chari of symbols) {
+                this.doStateMove(state, chari, unseeStates, addedstates, tryAssignStateId);
             }
         }
     } //}
+    private doStateMove(state: PushdownState, chari: string, //{
+                        unseeStates: PushdownState[], addedstates: Set<number>, 
+                        assignID: (st: PushdownState) => number)
+    {
+        const current_stateid = assignID(state);
+        const newstateset = this.statesetGoto(state, chari);
+        const newstateid = assignID(newstateset);
+        const DoInShift = () => {
+            if(!addedstates.has(newstateid)) {
+                addedstates.add(newstateid);
+                unseeStates.push(newstateset);
+            }
+        }
+
+        // reject
+        if(newstateset.length == 0) {
+            this.StateCharNext2StateRule[this.stateChar2str(current_stateid, chari)] = null;
+            return;
+        }
+
+        const full: number[] = [];
+        for(const rulest of newstateset) {
+            const rule = this.rules[rulest[0]];
+            const pos = rulest[1];
+            if(rule[1].length == pos) {
+                full.push(rulest[0]);
+            }
+        }
+
+        if(full.length > 0) { // it's possible to reduce
+            let heighest: number = full[0];
+            let prh = this.ruleOptions(heighest);
+
+            for(let vv of full) {
+                const pv = this.ruleOptions(vv);
+                if(prh.priority == null || 
+                    pv.priority > prh.priority || 
+                    (pv.priority == prh.priority && pv.associative == RuleAssocitive.Left)) 
+                {
+                    heighest = vv;
+                    prh = pv;
+                }
+            }
+
+            {
+                const hrule = this.ruleOptions(heighest);
+                if(hrule.uid && this.CompulsoryPriority[hrule.uid]) {
+                    const exempt_rules = new Set<number>();
+                    for(const huid of this.CompulsoryPriority[hrule.uid]) {
+                        for(const k of this.uid2rules[huid].keys()) {
+                            exempt_rules.add(k);
+                        }
+                    }
+
+                    let setexempt: boolean = false;
+                    for(const r of full) {
+                        if(exempt_rules.has(r)) {
+                            assert.equal(setexempt, false, 'compile fail, invalid rule');
+                            setexempt = true;
+                            heighest = r;
+                            prh = this.ruleOptions(heighest);
+                        }
+                    }
+                }
+            }
+
+            let nreduce=0;
+            for(let vv of full) {
+                const pv = this.ruleOptions(vv);
+                if(pv.priority == prh.priority && pv.associative == prh.associative) {
+                    nreduce++;
+                }
+            }
+            const ReduceCheck = () => {
+                if(nreduce > 1) {
+                    let msg = '\n';
+                    for(let vv of full) {
+                        const pv = this.ruleOptions(vv);
+                        if(pv.priority == prh.priority && pv.associative == prh.associative) {
+                            msg += '    ';
+                            msg += ruleStr(this.rules[vv][0], this.rules[vv][1]);
+                            msg += '\n';
+                        }
+                    }
+                    console.error(this.strAllRules(), state, chari, newstateset);
+                    throw new Error(`conflict rule in reduce: n=${nreduce} from ${current_stateid} to ${newstateid} ${msg}`);
+                }
+            }
+
+            if(prh.priority != null) {
+                const mapping: PushdownStateMapping = {};
+                this.StateCharNext2StateRule[this.stateChar2str(current_stateid, chari)] = [null, null, mapping];
+
+                for(const tlook of this.terms.keys()) {
+                    // lookahead
+                    const aheadstate = this.statesetGoto(newstateset, tlook);
+                    let moststrict: RuleOptions;
+                    for(const st of aheadstate) {
+                        // TODO
+                        const op = this.rules[st[0]][2];
+                        if(!moststrict || 
+                            op.priority < moststrict.priority ||
+                            (op.priority == moststrict.priority && op.associative == RuleAssocitive.Right))
+                        {
+                            moststrict = op;
+                        }
+                    }
+
+                    if(moststrict == null || 
+                        moststrict.priority > prh.priority || 
+                        (moststrict.priority == prh.priority && moststrict.associative != RuleAssocitive.Right)) 
+                    {
+                        // reduce
+                        ReduceCheck();
+                        mapping[tlook] = [null, heighest, null];
+                    } else {
+                        // shift
+                        DoInShift();
+                        mapping[tlook] = [newstateid, null, null];
+                    }
+                }
+            } else {
+                // reduce
+                ReduceCheck();
+                this.StateCharNext2StateRule[this.stateChar2str(current_stateid, chari)] = [null, heighest, null];
+            }
+        } else {
+            // shift
+            DoInShift();
+            this.StateCharNext2StateRule[this.stateChar2str(current_stateid, chari)] = [newstateid, null, null];
+        }
+    } //}
+    private startState(): [number, number][] //{
+    {
+        const ans: [number, number][] = [];
+        for(let i=0;i<this.rules.length;i++) {
+            const rule = this.rules[i];
+            if(this.startSymbols.indexOf(rule[0].name) >= 0) {
+                ans.push([i, 0]);
+            }
+        }
+
+        return ans;
+    } //}
+
     private save_state_go: Map<string, PushdownState> = new Map();
-    private from_save_state_go(sstr: string) {
+    private from_save_state_go(sstr: string) //{
+    {
         const ans = [];
         this.save_state_go.get(sstr).forEach(val => ans.push(val.slice()));
         return ans;
-    }
+    } //}
     private statesetGoto(oldstate: PushdownState, ichar: string): PushdownState //{
     {
         const sstr = this.stateset2str(oldstate) + '@' + ichar;
@@ -261,7 +309,6 @@ export class ParserGenerator {
 
         const newstateset: [number, number][] = [];
         const validNonTerm: Set<string> = new Set();
-        const isstart = this.isStartState(oldstate);
 
         for(const ppa of oldstate) {
             const rule = this.rules[ppa[0]];
@@ -292,7 +339,7 @@ export class ParserGenerator {
         }
 
         for(let ir=0;ir<this.rules.length;ir++) {
-            if(!isstart && !validNonTerm.has(this.rules[ir][0].name)) {
+            if(!validNonTerm.has(this.rules[ir][0].name)) {
                 continue;
             }
 
@@ -302,7 +349,13 @@ export class ParserGenerator {
             }
         }
 
-        newstateset.sort((a, b) => {
+        const ans = this.SortUniqueArray(newstateset);
+        this.save_state_go.set(sstr, ans);
+        return this.from_save_state_go(sstr);
+    } //}
+    private SortUniqueArray(array: [number, number][]): [number, number][] //{
+    {
+        array.sort((a, b) => {
             if(a[0] < b[0]) {
                 return -1;
             } else if (a[0] > b[0]) {
@@ -320,18 +373,15 @@ export class ParserGenerator {
 
         const ans: PushdownState = [];
         let prev;
-        for(const s of newstateset) {
+        for(const s of array) {
             if(prev && s[0] == prev[0] && s[1] == prev[1]) {
                 continue;
             }
             prev = s;
             ans.push(s);
         }
-
-        this.save_state_go.set(sstr, ans);
-        return this.from_save_state_go(sstr);
+        return ans;
     } //}
-    private isStartState(state: PushdownState): boolean {return state.length == 0;}
     private isNonTerm(chari: string): boolean {return this.nonterms.has(chari);}
 
     private ruleOptions(rulen: number): RuleOptions //{
@@ -445,11 +495,23 @@ export class ParserGenerator {
         const symbols = symbolstack.splice(symbolstack.length - n, n);
         symbols.push(sym);
 
-        // printReduce(newNT, symbols);
+        printReduce(newNT, symbols);
         if(rule[2] && rule[2].callback) {
             rule[2].callback(newNT, symbols);
         }
         this.pushNewCharacter(tokenizer, statestack, symbolstack, newNT);
+    } //}
+
+    private strAllRules() //{
+    {
+        let ans = '';
+        for(let i=0;i<this.rules.length;i++) {
+            const rule = this.rules[i];
+            ans += `${i}: ` + ruleStr(rule[0], rule[1]);
+            ans += '\n';
+        }
+
+        return ans;
     } //}
 
     save() {
@@ -461,7 +523,19 @@ export class ParserGenerator {
     }
 }
 
-function printReduce(nt: INotTermianlCharacter, ts: ICharacter[]) {
+function ruleStr(nt: INotTermianlCharacter, ts: ICharacter[]): string //{
+{
+    let ans = `${nt.name} => `;
+    for(let i in ts) {
+        const t = ts[i];
+        ans += t.name;
+        if(parseInt(i) != ts.length - 1) ans += ' ';
+    }
+
+    return ans;
+} //}
+function printReduce(nt: INotTermianlCharacter, ts: ICharacter[]) //{
+{
     let print = '[ ';
     for(let i in ts) {
         const t = ts[i];
@@ -472,5 +546,5 @@ function printReduce(nt: INotTermianlCharacter, ts: ICharacter[]) {
     print += ' ] => ';
     print += nt.name;
     console.log(print);
-}
+} //}
 

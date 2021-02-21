@@ -12,12 +12,215 @@ export class CParser {
     }
 
     private InitParser() {
+        this.parser.addStartSymbol('Expr', 'TypeName');
         this.GrammarExpr();
+
+        this.GrammarDeclaration();
+        this.GrammarStruct();
+        this.GrammarDeclarator();
+
+        this.GrammarBasicStatement();
+        this.GrammarIfStatement();
+        this.GrammarForStatement();
+        this.GrammarWhileStatement();
+        this.GrammarDoWhileStatement();
+        this.GrammarSwitchStatement();
 
         this.parser.compile();
     }
 
-    private GrammarExpr() {
+    private GrammarDeclaration() //{
+    { 
+        [
+            TokenType.TYPEDEF, TokenType.STATIC,
+            TokenType.EXTERN,  TokenType.AUTO,
+            TokenType.REGISTER
+        ].forEach(tt => this.parser.addRule({name: 'StorageClassSpecifier'}, [{name: tt}]));
+
+        [
+            TokenType.CONST, TokenType.VOLATILE, TokenType.RESTRICT
+        ].forEach(tt => this.parser.addRule({name: 'TypeQualifier'}, [{name: tt}]));
+        this.parser.addRule({name: 'TypeQualifier'}, [{name: 'TypeQualifier'}, {name: 'TypeQualifier'}]);
+
+        [
+            TokenType.VOID,
+            TokenType.CHAR,   TokenType.SHORT,
+            TokenType.INT,    TokenType.LONG,
+            TokenType.FLOATV,  TokenType.DOUBLE,
+            TokenType.SIGNED, TokenType.UNSIGNED,
+        ].forEach(tt => this.parser.addRule({name: 'TypeSpecifier'}, [{name: tt}]));
+
+        this.parser.addRule({name: 'TypeSpecifier'}, [{name: 'StructSpecifier'}]);
+        this.parser.addRule({name: 'TypeSpecifier'}, [{name: 'UnionSpecifier'}]);
+        this.parser.addRule({name: 'TypeSpecifier'}, [{name: 'EnumSpecifier'}]);
+
+        [
+            'StorageClassSpecifier', 'TypeSpecifier',
+            'TypeQualifier', 'FunctionSpecifier'
+        ].forEach(tp => this.parser.addRule({name: 'DeclarationSpecifiers'}, [{name: tp}]));
+        this.parser.addRule({name: 'DeclarationSpecifiers'}, [
+            {name: 'DeclarationSpecifiers'},
+            {name: 'DeclarationSpecifiers'}
+        ]);
+
+        this.parser.addRule({name: 'SpecifierQualifierList'}, [
+            {name: 'TypeSpecifier'}
+        ], {priority: 2});
+        this.parser.addRule({name: 'SpecifierQualifierList'}, [
+            {name: 'TypeQualifier'}
+        ], {priority: 2});
+        this.parser.addRule({name: 'SpecifierQualifierList'}, [
+            {name: 'TypeSpecifier'},
+            {name: 'SpecifierQualifierList'}
+        ], {priority: 1});
+        this.parser.addRule({name: 'SpecifierQualifierList'}, [
+            {name: 'TypeQualifier'},
+            {name: 'SpecifierQualifierList'}
+        ], {priority: 1});
+    } //}
+    private GrammarStruct() //{
+    {
+        this.parser.addRule({name: 'StructSpecifier'}, [
+            {name: TokenType.STRUCT},
+            {name: TokenType.ID},
+        ], {priority: 2});
+        this.parser.addRule({name: 'StructSpecifier'}, [
+            {name: TokenType.STRUCT},
+            {name: TokenType.ID},
+            {name: TokenType.lCBracket},
+            {name: TokenType.rCBracket},
+        ], {priority: 1});
+        this.parser.addRule({name: 'StructSpecifier'}, [
+            {name: TokenType.STRUCT},
+            {name: TokenType.lCBracket},
+            {name: TokenType.rCBracket},
+        ]);
+        this.parser.addRule({name: 'StructDeclaration'}, [
+            {name: TokenType.STRUCT},
+            {name: TokenType.ID},
+            {name: TokenType.Semicolon},
+        ], {priority: 1});
+    } //}
+    private GrammarDeclarator() //{
+    {
+        this.parser.addRule({name: 'Declarator'}, [
+            {name: 'Pointer', optional: true},
+            {name: 'DirectDeclarator'}
+        ]);
+
+        this.parser.addRule({name: 'DirectDeclarator'}, [{name: TokenType.ID}]);
+        this.parser.addRule({name: 'DirectDeclarator'}, [
+            {name: TokenType.lRBracket},
+            {name: 'Declarator'},
+            {name: TokenType.rRBracket},
+        ]);
+        this.parser.addRule({name: 'DirectDeclarator'}, [
+            {name: TokenType.lSBracket},
+            {name: 'TypeQualifier', optional: true},
+            {name: 'Expr', optional: true},
+            {name: TokenType.rSBracket},
+        ]);
+        this.parser.addRule({name: 'DirectDeclarator'}, [
+            {name: TokenType.lSBracket},
+            {name: TokenType.STATIC},
+            {name: 'TypeQualifier', optional: true},
+            {name: 'Expr'},
+            {name: TokenType.rSBracket},
+        ]);
+        this.parser.addRule({name: 'DirectDeclarator'}, [
+            {name: TokenType.lSBracket},
+            {name: 'TypeQualifier'},
+            {name: TokenType.STATIC},
+            {name: 'Expr'},
+            {name: TokenType.rSBracket},
+        ]);
+        this.parser.addRule({name: 'DirectDeclarator'}, [
+            {name: TokenType.lSBracket},
+            {name: 'TypeQualifier', optional: true},
+            {name: TokenType.Multiplication_AddressOf},
+            {name: TokenType.rSBracket},
+        ]);
+        this.parser.addRule({name: 'DirectDeclarator'}, [
+            {name: TokenType.lRBracket},
+            {name: 'ParameterTypeList'},
+            {name: TokenType.rRBracket},
+        ]);
+        this.parser.addRule({name: 'DirectDeclarator'}, [
+            {name: TokenType.lRBracket},
+            {name: 'IDList', optional: true},
+            {name: TokenType.rRBracket},
+        ]);
+        this.parser.addRule({name: 'DirectDeclarator'}, [
+            {name: TokenType.lRBracket},
+            {name: TokenType.ID},
+            {name: TokenType.rRBracket},
+        ]);
+
+        this.parser.addRule({name: 'Pointer'}, [
+            {name: TokenType.Multiplication_AddressOf},
+            {name: 'TypeQualifier', optional: true},
+            {name: 'Pointer', optional: true},
+        ]);
+
+        this.parser.addRule({name: 'ParameterTypeList'}, [
+            {name: 'ParamterList'}
+        ], {priority: 2});
+        this.parser.addRule({name: 'ParameterTypeList'}, [
+            {name: 'ParamterList'},
+            {name: TokenType.Comma},
+            {name: TokenType.DOTS},
+        ], {priority: 1});
+
+        this.parser.addRule({name: 'ParameterList'}, [
+            {name: 'ParameterDeclaration'}
+        ], {priority: 2});
+        this.parser.addRule({name: 'ParameterList'}, [
+            {name: 'ParameterList'},
+            {name: TokenType.Comma},
+            {name: 'ParameterDeclaration'}
+        ], {priority: 1});
+
+        this.parser.addRule({name: 'ParameterDeclaration'}, [
+            {name: 'DeclarationSpecifiers'},
+            {name: 'Declarator'},
+        ]);
+        this.parser.addRule({name: 'ParameterDeclaration'}, [
+            {name: 'DeclarationSpecifiers'},
+            {name: 'AbstractDeclarator', optional: true},
+        ]);
+
+        this.parser.addRule({name: 'IDList'}, [
+            {name: TokenType.ID},
+            {name: TokenType.Comma},
+            {name: TokenType.ID},
+        ]);
+        this.parser.addRule({name: 'IDList'}, [
+            {name: 'IDList'},
+            {name: TokenType.Comma},
+            {name: TokenType.ID}
+        ]);
+
+        this.parser.addRule({name: 'TypeName'}, [
+            {name: 'SpecifierQualifierList'}
+        ], {priority: 2});
+
+        this.parser.addRule({name: 'TypeName'}, [
+            {name: 'SpecifierQualifierList'},
+            {name: 'AbstractDeclarator'}
+        ], {priority: 1});
+
+        this.parser.addRule({name: 'AbstractDeclarator'}, [
+            {name: 'Pointer'},
+        ], {priority: 2});
+
+        this.parser.addRule({name: 'AbstractDeclarator'}, [
+            {name: 'Pointer'},
+            {name: 'DirectAbstractDeclarator'},
+        ], {priority: 1});
+    } //}
+
+    private GrammarExpr() //{
+    {
         this.parser.addRule({name: 'Expr'}, [{name: TokenType.ID}]);
         this.parser.addRule({name: 'Expr'}, [{name: TokenType.STRING}]);
         this.parser.addRule({name: 'Expr'}, [{name: TokenType.INTEGER}]);
@@ -157,7 +360,62 @@ export class CParser {
             {name: tt},
             {name: 'Expr'}
         ], {priority: 14, associative: RuleAssocitive.Right}));
-    }
+    } //}
+
+    private GrammarBasicStatement() //{
+    {
+        this.parser.addRule({name: 'Expr'}, [{name: TokenType.BREAK}]);
+        this.parser.addRule({name: 'Expr'}, [{name: TokenType.CONTINUE}]);
+
+        this.parser.addRule({name: 'Statement'}, [
+            {name: 'Expr', optional: true},
+            {name: TokenType.Semicolon}
+        ]);
+
+        this.parser.addRule({name: 'Statement'}, [
+            {name: 'Exprlist'},
+            {name: TokenType.Semicolon}
+        ]);
+        this.parser.addRule({name: 'Statement'}, [
+            {name: 'Block'}
+        ]);
+
+        this.parser.addRule({name: 'Block'}, [
+            {name: TokenType.lCBracket},
+            {name: 'Statement'},
+            {name: TokenType.rCBracket},
+        ]);
+        this.parser.addRule({name: 'Block'}, [
+            {name: TokenType.lCBracket},
+            {name: 'StatementList', optional: true},
+            {name: TokenType.rCBracket},
+        ]);
+        this.parser.addRule({name: 'StatementList'}, [
+            {name: 'Statement'},
+            {name: TokenType.Comma},
+            {name: 'Statement'},
+        ]);
+        this.parser.addRule({name: 'StatementList'}, [
+            {name: 'StatementList'},
+            {name: TokenType.Comma},
+            {name: 'Statement'},
+        ]);
+    } //}
+    private GrammarIfStatement() //{
+    {
+    } //}
+    private GrammarForStatement() //{
+    {
+    } //}
+    private GrammarWhileStatement() //{
+    {
+    } //}
+    private GrammarDoWhileStatement() //{
+    {
+    } //}
+    private GrammarSwitchStatement() //{
+    {
+    } //}
 
     feed(text: string) {
         this.tokenizer.feed(text);

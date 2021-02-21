@@ -80,7 +80,7 @@ export enum TokenType {
     SHORT    = 'SHORT',
     INT      = 'INT',
     LONG     = 'LONG',
-    FLOATV   = 'FLOAT',
+    FLOATV   = 'FLOATV',
     DOUBLE   = 'DOUBLE',
     SIGNED   = 'SIGNED',
     UNSIGNED = 'UNSIGNED',
