@@ -227,13 +227,19 @@ export class ParserGenerator {
                     for(let vv of full) {
                         const pv = this.ruleOptions(vv);
                         if(pv.priority == prh.priority && pv.associative == prh.associative) {
-                            msg += '    ';
+                            msg += '        ';
                             msg += ruleStr(this.rules[vv][0], this.rules[vv][1]);
                             msg += '\n';
                         }
                     }
-                    console.error(this.strAllRules(), state, chari, newstateset);
-                    throw new Error(`conflict rule in reduce: n=${nreduce} from ${current_stateid} to ${newstateid} ${msg}`);
+                    const moremsg = JSON.stringify({
+                        rules: this.strAllRules(), 
+                        state: state, 
+                        character: chari, 
+                        newstate: newstateset
+                    }, null, 2);
+                    throw new Error(`conflict rule in reduce: n=${nreduce} from ${current_stateid} to ${newstateid} ${msg}
+                                     \n${moremsg}`);
                 }
             }
 
@@ -434,7 +440,11 @@ export class ParserGenerator {
         }
 
         if(symbolstack.length != 2) {
-            throw new Error('parse error: unexpected finish');
+            const stackdump = JSON.stringify({
+                statestack: statestack, 
+                symbolstack: symbolstack
+            }, null, 2);
+            throw new Error(`parse error: unexpected finish\n${stackdump}`);
         }
         return consumed;
     } //}
@@ -464,6 +474,7 @@ export class ParserGenerator {
             if(nextnextstep == null ||
                (nextnextstep[0] == null && nextnextstep[1] == null)) 
             {
+                console.error(statestack, symbolstack);
                 throw new Error(`parse error: in ${character.name}`);
             } else if (nextnextstep[1] != null) {
                 this.reduceStackByRule(tokenizer, nextnextstep[1], statestack, symbolstack, character);

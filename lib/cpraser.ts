@@ -1,24 +1,51 @@
 import { CTokenizer, TokenType } from "./ctokenizer";
 import { ParserGenerator, RuleAssocitive } from "./ParserGenerator/generator";
 
+enum NonTermSymbol {
+    Declaration = 'Declaration', DeclarationSpecifiers = 'DeclarationSpecifiers',
+    InitDeclaratorList = 'InitDeclaratorList', StorageClassSpecifier = 'StorageClassSpecifier',
+    TypeSpecifier = 'TypeSpecifier', TypeQualifier = 'TypeQualifier',
+    FunctionSpecifier = 'FunctionSpecifier', InitDeclarator = 'InitDeclarator',
+    Declarator = 'Declarator', Initializer = 'Initializer',
+    StructOrUnionSpecifier = 'StructOrUnionSpecifier',
+    StructOrUnion = 'StructOrUnion',
+    StructDeclarationList = 'StructDeclarationList', StructDeclaration = 'StructDeclaration',
+    SpecifierQualifierList = 'SpecifierQualifierList', StructDeclaratorList = 'StructDeclaratorList',
+    StructDeclarator = 'StructDeclarator',
+    EnumSpecifier = 'EnumSpecifier', EnumeratorList = 'EnumeratorList',
+    Enumerator = 'Enumerator',
+    DirectDeclarator = 'DirectDeclarator', IdentifierList = 'IdentifierList',
+    ParameterTypeList = 'ParameterTypeList', Pointer = 'Pointer',
+    TypeQualifierList = 'TypeQualifierList', ParameterList = 'ParameterList',
+    ParameterDeclaration = 'ParameterDeclaration', AbstractDeclarator = 'AbstractDeclarator',
+    TypeName = 'TypeName', DirectAbstractDeclarator = 'DirectAbstractDeclarator',
+    TypedefName = 'TypedefName', InitializerList = 'InitializerList',
+    Designation = 'Designation', DesignatorList = 'DesignatorList',
+    Designator = 'Designator',
+}
+
 export class CParser {
     private tokenizer: CTokenizer;
     private parser: ParserGenerator;
+    private filename: string;
 
     constructor(filename: string) {
+        this.filename = filename;
         this.tokenizer = new CTokenizer(filename);
         this.parser = new ParserGenerator();
         this.InitParser();
     }
 
     private InitParser() {
-        this.parser.addStartSymbol('Expr', 'TypeName');
+        this.parser.addStartSymbol(NonTermSymbol.Declaration);
+
+        // Expressions
         this.GrammarExpr();
 
+        // Declarations
         this.GrammarDeclaration();
-        this.GrammarStruct();
-        this.GrammarDeclarator();
 
+        // Statements
         this.GrammarBasicStatement();
         this.GrammarIfStatement();
         this.GrammarForStatement();
@@ -28,196 +55,6 @@ export class CParser {
 
         this.parser.compile();
     }
-
-    private GrammarDeclaration() //{
-    { 
-        [
-            TokenType.TYPEDEF, TokenType.STATIC,
-            TokenType.EXTERN,  TokenType.AUTO,
-            TokenType.REGISTER
-        ].forEach(tt => this.parser.addRule({name: 'StorageClassSpecifier'}, [{name: tt}]));
-
-        [
-            TokenType.CONST, TokenType.VOLATILE, TokenType.RESTRICT
-        ].forEach(tt => this.parser.addRule({name: 'TypeQualifier'}, [{name: tt}]));
-        this.parser.addRule({name: 'TypeQualifier'}, [{name: 'TypeQualifier'}, {name: 'TypeQualifier'}]);
-
-        [
-            TokenType.VOID,
-            TokenType.CHAR,   TokenType.SHORT,
-            TokenType.INT,    TokenType.LONG,
-            TokenType.FLOATV,  TokenType.DOUBLE,
-            TokenType.SIGNED, TokenType.UNSIGNED,
-        ].forEach(tt => this.parser.addRule({name: 'TypeSpecifier'}, [{name: tt}]));
-
-        this.parser.addRule({name: 'TypeSpecifier'}, [{name: 'StructSpecifier'}]);
-        this.parser.addRule({name: 'TypeSpecifier'}, [{name: 'UnionSpecifier'}]);
-        this.parser.addRule({name: 'TypeSpecifier'}, [{name: 'EnumSpecifier'}]);
-
-        [
-            'StorageClassSpecifier', 'TypeSpecifier',
-            'TypeQualifier', 'FunctionSpecifier'
-        ].forEach(tp => this.parser.addRule({name: 'DeclarationSpecifiers'}, [{name: tp}]));
-        this.parser.addRule({name: 'DeclarationSpecifiers'}, [
-            {name: 'DeclarationSpecifiers'},
-            {name: 'DeclarationSpecifiers'}
-        ]);
-
-        this.parser.addRule({name: 'SpecifierQualifierList'}, [
-            {name: 'TypeSpecifier'}
-        ], {priority: 2});
-        this.parser.addRule({name: 'SpecifierQualifierList'}, [
-            {name: 'TypeQualifier'}
-        ], {priority: 2});
-        this.parser.addRule({name: 'SpecifierQualifierList'}, [
-            {name: 'TypeSpecifier'},
-            {name: 'SpecifierQualifierList'}
-        ], {priority: 1});
-        this.parser.addRule({name: 'SpecifierQualifierList'}, [
-            {name: 'TypeQualifier'},
-            {name: 'SpecifierQualifierList'}
-        ], {priority: 1});
-    } //}
-    private GrammarStruct() //{
-    {
-        this.parser.addRule({name: 'StructSpecifier'}, [
-            {name: TokenType.STRUCT},
-            {name: TokenType.ID},
-        ], {priority: 2});
-        this.parser.addRule({name: 'StructSpecifier'}, [
-            {name: TokenType.STRUCT},
-            {name: TokenType.ID},
-            {name: TokenType.lCBracket},
-            {name: TokenType.rCBracket},
-        ], {priority: 1});
-        this.parser.addRule({name: 'StructSpecifier'}, [
-            {name: TokenType.STRUCT},
-            {name: TokenType.lCBracket},
-            {name: TokenType.rCBracket},
-        ]);
-        this.parser.addRule({name: 'StructDeclaration'}, [
-            {name: TokenType.STRUCT},
-            {name: TokenType.ID},
-            {name: TokenType.Semicolon},
-        ], {priority: 1});
-    } //}
-    private GrammarDeclarator() //{
-    {
-        this.parser.addRule({name: 'Declarator'}, [
-            {name: 'Pointer', optional: true},
-            {name: 'DirectDeclarator'}
-        ]);
-
-        this.parser.addRule({name: 'DirectDeclarator'}, [{name: TokenType.ID}]);
-        this.parser.addRule({name: 'DirectDeclarator'}, [
-            {name: TokenType.lRBracket},
-            {name: 'Declarator'},
-            {name: TokenType.rRBracket},
-        ]);
-        this.parser.addRule({name: 'DirectDeclarator'}, [
-            {name: TokenType.lSBracket},
-            {name: 'TypeQualifier', optional: true},
-            {name: 'Expr', optional: true},
-            {name: TokenType.rSBracket},
-        ]);
-        this.parser.addRule({name: 'DirectDeclarator'}, [
-            {name: TokenType.lSBracket},
-            {name: TokenType.STATIC},
-            {name: 'TypeQualifier', optional: true},
-            {name: 'Expr'},
-            {name: TokenType.rSBracket},
-        ]);
-        this.parser.addRule({name: 'DirectDeclarator'}, [
-            {name: TokenType.lSBracket},
-            {name: 'TypeQualifier'},
-            {name: TokenType.STATIC},
-            {name: 'Expr'},
-            {name: TokenType.rSBracket},
-        ]);
-        this.parser.addRule({name: 'DirectDeclarator'}, [
-            {name: TokenType.lSBracket},
-            {name: 'TypeQualifier', optional: true},
-            {name: TokenType.Multiplication_AddressOf},
-            {name: TokenType.rSBracket},
-        ]);
-        this.parser.addRule({name: 'DirectDeclarator'}, [
-            {name: TokenType.lRBracket},
-            {name: 'ParameterTypeList'},
-            {name: TokenType.rRBracket},
-        ]);
-        this.parser.addRule({name: 'DirectDeclarator'}, [
-            {name: TokenType.lRBracket},
-            {name: 'IDList', optional: true},
-            {name: TokenType.rRBracket},
-        ]);
-        this.parser.addRule({name: 'DirectDeclarator'}, [
-            {name: TokenType.lRBracket},
-            {name: TokenType.ID},
-            {name: TokenType.rRBracket},
-        ]);
-
-        this.parser.addRule({name: 'Pointer'}, [
-            {name: TokenType.Multiplication_AddressOf},
-            {name: 'TypeQualifier', optional: true},
-            {name: 'Pointer', optional: true},
-        ]);
-
-        this.parser.addRule({name: 'ParameterTypeList'}, [
-            {name: 'ParamterList'}
-        ], {priority: 2});
-        this.parser.addRule({name: 'ParameterTypeList'}, [
-            {name: 'ParamterList'},
-            {name: TokenType.Comma},
-            {name: TokenType.DOTS},
-        ], {priority: 1});
-
-        this.parser.addRule({name: 'ParameterList'}, [
-            {name: 'ParameterDeclaration'}
-        ], {priority: 2});
-        this.parser.addRule({name: 'ParameterList'}, [
-            {name: 'ParameterList'},
-            {name: TokenType.Comma},
-            {name: 'ParameterDeclaration'}
-        ], {priority: 1});
-
-        this.parser.addRule({name: 'ParameterDeclaration'}, [
-            {name: 'DeclarationSpecifiers'},
-            {name: 'Declarator'},
-        ]);
-        this.parser.addRule({name: 'ParameterDeclaration'}, [
-            {name: 'DeclarationSpecifiers'},
-            {name: 'AbstractDeclarator', optional: true},
-        ]);
-
-        this.parser.addRule({name: 'IDList'}, [
-            {name: TokenType.ID},
-            {name: TokenType.Comma},
-            {name: TokenType.ID},
-        ]);
-        this.parser.addRule({name: 'IDList'}, [
-            {name: 'IDList'},
-            {name: TokenType.Comma},
-            {name: TokenType.ID}
-        ]);
-
-        this.parser.addRule({name: 'TypeName'}, [
-            {name: 'SpecifierQualifierList'}
-        ], {priority: 2});
-
-        this.parser.addRule({name: 'TypeName'}, [
-            {name: 'SpecifierQualifierList'},
-            {name: 'AbstractDeclarator'}
-        ], {priority: 1});
-
-        this.parser.addRule({name: 'AbstractDeclarator'}, [
-            {name: 'Pointer'},
-        ], {priority: 2});
-
-        this.parser.addRule({name: 'AbstractDeclarator'}, [
-            {name: 'Pointer'},
-            {name: 'DirectAbstractDeclarator'},
-        ], {priority: 1});
-    } //}
 
     private GrammarExpr() //{
     {
@@ -362,6 +199,405 @@ export class CParser {
         ], {priority: 14, associative: RuleAssocitive.Right}));
     } //}
 
+    private GrammarDeclaration() //{
+    { 
+        // (6.7)
+        this.parser.addRule({name: NonTermSymbol.Declaration}, [
+            {name: NonTermSymbol.DeclarationSpecifiers},
+            {name: NonTermSymbol.InitDeclaratorList},
+            {name: TokenType.Semicolon}
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.DeclarationSpecifiers}, [
+            {name: NonTermSymbol.DeclarationSpecifiers, optional: true},
+            {name: NonTermSymbol.StorageClassSpecifier},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.DeclarationSpecifiers}, [
+            {name: NonTermSymbol.DeclarationSpecifiers, optional: true},
+            {name: NonTermSymbol.TypeSpecifier},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.DeclarationSpecifiers}, [
+            {name: NonTermSymbol.DeclarationSpecifiers, optional: true},
+            {name: NonTermSymbol.TypeQualifier},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.DeclarationSpecifiers}, [
+            {name: NonTermSymbol.DeclarationSpecifiers, optional: true},
+            {name: NonTermSymbol.FunctionSpecifier},
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.InitDeclaratorList}, [
+            {name: NonTermSymbol.InitDeclaratorList, optional: true},
+            {name: NonTermSymbol.InitDeclarator},
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.InitDeclarator}, [
+            {name: NonTermSymbol.Declarator},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.InitDeclarator}, [
+            {name: NonTermSymbol.Declarator},
+            {name: TokenType.SimpleAssignment},
+            {name: NonTermSymbol.Initializer},
+        ], {priority: 1});
+
+        // (6.7.1)
+        [
+            TokenType.TYPEDEF, TokenType.EXTERN,
+            TokenType.STATIC,  TokenType.AUTO,
+            TokenType.REGISTER
+        ].forEach(tt => this.parser.addRule({name: NonTermSymbol.StorageClassSpecifier}, [{name: tt}]));
+
+        // (6.7.2)
+        [
+            TokenType.VOID,
+            TokenType.CHAR,   TokenType.SHORT,
+            TokenType.INT,    TokenType.LONG,
+            TokenType.FLOATV,  TokenType.DOUBLE,
+            TokenType.SIGNED, TokenType.UNSIGNED,
+            NonTermSymbol.TypedefName
+        ].forEach(tt => this.parser.addRule({name: NonTermSymbol.TypeSpecifier}, [{name: tt}]));
+
+        // FIXME
+        this.parser.addRule({name: NonTermSymbol.Declaration}, [
+            {name: NonTermSymbol.StructOrUnionSpecifier},
+            {name: TokenType.Semicolon}
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.Declaration}, [
+            {name: NonTermSymbol.EnumSpecifier},
+            {name: TokenType.Semicolon}
+        ], {priority: 1});
+
+        this.parser.addRule({name: NonTermSymbol.TypeSpecifier}, [
+            {name: NonTermSymbol.StructOrUnionSpecifier},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.TypeSpecifier}, [
+            {name: NonTermSymbol.EnumSpecifier}
+        ], {priority: 2});
+
+        // (6.7.2.1)
+        this.parser.addRule({name: NonTermSymbol.StructOrUnionSpecifier}, [
+            {name: NonTermSymbol.StructOrUnion},
+            {name: TokenType.ID},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.StructOrUnionSpecifier}, [
+            {name: NonTermSymbol.StructOrUnion},
+            {name: TokenType.ID, optional: true},
+            {name: TokenType.lCBracket},
+            {name: NonTermSymbol.StructDeclarationList, optional: true},
+            {name: TokenType.rCBracket},
+        ], {priority: 1});
+
+        this.parser.addRule({name: NonTermSymbol.StructOrUnion}, [
+            {name: TokenType.STRUCT}
+        ]);
+        this.parser.addRule({name: NonTermSymbol.StructOrUnion}, [
+            {name: TokenType.UNION}
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.StructDeclarationList}, [
+            {name: NonTermSymbol.StructDeclarationList, optional: true},
+            {name: NonTermSymbol.StructDeclaration},
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.StructDeclaration}, [
+            {name: NonTermSymbol.SpecifierQualifierList},
+            {name: NonTermSymbol.StructDeclaratorList},
+            {name: TokenType.Semicolon}
+        ]);
+        this.parser.addRule({name: NonTermSymbol.StructDeclaration}, [
+            {name: TokenType.Semicolon}
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.SpecifierQualifierList}, [
+            {name: NonTermSymbol.SpecifierQualifierList, optional: true},
+            {name: NonTermSymbol.TypeSpecifier},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.SpecifierQualifierList}, [
+            {name: NonTermSymbol.SpecifierQualifierList, optional: true},
+            {name: NonTermSymbol.TypeQualifier},
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.StructDeclaratorList}, [
+            {name: NonTermSymbol.StructDeclarator}
+        ]);
+        this.parser.addRule({name: NonTermSymbol.StructDeclaratorList}, [
+            {name: NonTermSymbol.StructDeclaratorList},
+            {name: TokenType.Comma},
+            {name: NonTermSymbol.StructDeclarator}
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.StructDeclarator}, [
+            {name: NonTermSymbol.Declarator},
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.StructDeclarator}, [
+            {name: NonTermSymbol.Declarator, optional: true},
+            {name: TokenType.Colon},
+            {name: 'Expr'} // TODO
+        ]);
+
+        // (6.7.2.2)
+        this.parser.addRule({name: NonTermSymbol.EnumSpecifier}, [
+            {name: TokenType.ENUM},
+            {name: TokenType.ID},
+        ], {priority: 2});
+
+        this.parser.addRule({name: NonTermSymbol.EnumSpecifier}, [
+            {name: TokenType.ENUM},
+            {name: TokenType.ID, optional: true},
+            {name: TokenType.lCBracket},
+            {name: NonTermSymbol.EnumeratorList},
+            {name: TokenType.Comma, optional: true},
+            {name: TokenType.rCBracket},
+        ], {priority: 1});
+
+        this.parser.addRule({name: NonTermSymbol.EnumeratorList}, [
+            {name: NonTermSymbol.EnumeratorList},
+            {name: TokenType.Comma},
+            {name: NonTermSymbol.Enumerator},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.EnumeratorList}, [
+            {name: NonTermSymbol.Enumerator},
+        ], {priority: 2});
+
+        this.parser.addRule({name: NonTermSymbol.Enumerator}, [
+            {name: TokenType.ID}
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.Enumerator}, [
+            {name: TokenType.ID},
+            {name: TokenType.SimpleAssignment},
+            {name: 'Expr'} // TODO
+        ], {priority: 1});
+
+        // (6.7.3)
+        [
+            TokenType.CONST, TokenType.VOLATILE, TokenType.RESTRICT
+        ].forEach(tt => this.parser.addRule({name: NonTermSymbol.TypeQualifier}, [{name: tt}]));
+
+        // (6.7.4)
+        this.parser.addRule({name: NonTermSymbol.FunctionSpecifier}, [
+            {name: TokenType.INLINE}
+        ]);
+
+        // (6.7.5)
+        this.parser.addRule({name: NonTermSymbol.Declarator}, [
+            {name: NonTermSymbol.Pointer, optional: true},
+            {name: NonTermSymbol.DirectDeclarator},
+        ], {priority: 2});
+
+        this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [{name: TokenType.ID}]);
+        this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.Declarator},
+            {name: TokenType.rRBracket},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
+            {name: NonTermSymbol.DirectDeclarator},
+            {name: TokenType.lSBracket},
+            {name: NonTermSymbol.TypeQualifierList, optional: true},
+            {name: 'Expr', optional: true}, // TODO
+            {name: TokenType.rSBracket},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
+            {name: NonTermSymbol.DirectDeclarator},
+            {name: TokenType.lSBracket},
+            {name: TokenType.STATIC},
+            {name: NonTermSymbol.TypeQualifierList, optional: true},
+            {name: 'Expr'}, // TODO
+            {name: TokenType.rSBracket},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
+            {name: NonTermSymbol.DirectDeclarator},
+            {name: TokenType.lSBracket},
+            {name: NonTermSymbol.TypeQualifierList},
+            {name: TokenType.STATIC},
+            {name: 'Expr'}, // TODO
+            {name: TokenType.rSBracket},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
+            {name: NonTermSymbol.DirectDeclarator},
+            {name: TokenType.lSBracket},
+            {name: NonTermSymbol.TypeQualifierList, optional: true},
+            {name: TokenType.Multiplication_AddressOf},
+            {name: TokenType.rSBracket},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
+            {name: NonTermSymbol.DirectDeclarator},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.ParameterTypeList, optional: true},
+            {name: TokenType.rRBracket},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
+            {name: NonTermSymbol.DirectDeclarator},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.IdentifierList},
+            {name: TokenType.rRBracket},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
+            {name: NonTermSymbol.DirectDeclarator},
+            {name: TokenType.lRBracket},
+            {name: TokenType.ID},
+            {name: TokenType.rRBracket},
+        ], {priority: 1});
+
+        this.parser.addRule({name: NonTermSymbol.Pointer}, [
+            {name: TokenType.Multiplication_AddressOf},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.Pointer}, [
+            {name: NonTermSymbol.Pointer},
+            {name: TokenType.Multiplication_AddressOf},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.Pointer}, [
+            {name: NonTermSymbol.Pointer},
+            {name: NonTermSymbol.TypeQualifierList},
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.TypeQualifierList}, [
+            {name: NonTermSymbol.TypeQualifierList, optional: true},
+            {name: NonTermSymbol.TypeQualifier},
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.ParameterTypeList}, [
+            {name: NonTermSymbol.ParameterList}
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.ParameterTypeList}, [
+            {name: NonTermSymbol.ParameterList},
+            {name: TokenType.Comma},
+            {name: TokenType.DOTS},
+        ], {priority: 1});
+
+        this.parser.addRule({name: NonTermSymbol.ParameterList}, [
+            {name: NonTermSymbol.ParameterList},
+            {name: TokenType.Comma},
+            {name: NonTermSymbol.ParameterDeclaration},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.ParameterList}, [
+            {name: NonTermSymbol.ParameterDeclaration},
+        ], {priority: 2});
+
+        this.parser.addRule({name: NonTermSymbol.ParameterDeclaration}, [
+            {name: NonTermSymbol.DeclarationSpecifiers},
+            {name: NonTermSymbol.Declarator}, // TODO
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.ParameterDeclaration}, [
+            {name: NonTermSymbol.DeclarationSpecifiers},
+            {name: NonTermSymbol.AbstractDeclarator},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.ParameterDeclaration}, [
+            {name: NonTermSymbol.DeclarationSpecifiers},
+        ], {priority: 2});
+
+        this.parser.addRule({name: NonTermSymbol.IdentifierList}, [
+            {name: TokenType.ID},
+            {name: TokenType.Comma},
+            {name: TokenType.ID}
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.IdentifierList}, [
+            {name: NonTermSymbol.IdentifierList},
+            {name: TokenType.Comma},
+            {name: TokenType.ID}
+        ]);
+
+        // (6.7.6)
+        this.parser.addRule({name: NonTermSymbol.TypeName}, [
+            {name: NonTermSymbol.SpecifierQualifierList},
+            {name: NonTermSymbol.AbstractDeclarator},
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.AbstractDeclarator}, [
+            {name: NonTermSymbol.Pointer},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.AbstractDeclarator}, [
+            {name: NonTermSymbol.Pointer, optional: true},
+            {name: NonTermSymbol.DirectAbstractDeclarator},
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.AbstractDeclarator},
+            {name: TokenType.rRBracket},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
+            {name: NonTermSymbol.DirectAbstractDeclarator, optional: true},
+            {name: TokenType.lSBracket},
+            {name: NonTermSymbol.TypeQualifierList, optional: true},
+            {name: 'Expr', optional: true}, // TODO
+            {name: TokenType.rSBracket},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
+            {name: NonTermSymbol.DirectAbstractDeclarator, optional: true},
+            {name: TokenType.lSBracket},
+            {name: TokenType.STATIC},
+            {name: NonTermSymbol.TypeQualifierList, optional: true},
+            {name: 'Expr'}, // TODO
+            {name: TokenType.rSBracket},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
+            {name: NonTermSymbol.DirectAbstractDeclarator, optional: true},
+            {name: TokenType.lSBracket},
+            {name: NonTermSymbol.TypeQualifierList},
+            {name: TokenType.STATIC},
+            {name: 'Expr'}, // TODO
+            {name: TokenType.rSBracket},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
+            {name: NonTermSymbol.DirectAbstractDeclarator, optional: true},
+            {name: TokenType.lSBracket},
+            {name: TokenType.Multiplication_AddressOf},
+            {name: TokenType.rSBracket},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
+            {name: NonTermSymbol.DirectAbstractDeclarator, optional: true},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.ParameterTypeList, optional: true},
+            {name: TokenType.rRBracket},
+        ]);
+
+        // (6.7.7)
+        /* TODO
+        this.parser.addRule({name: NonTermSymbol.TypeName}, [
+            {name: TokenType.ID}
+        ], {uid: 'typename-rule'});
+        */
+
+        // (6.7.8)
+        this.parser.addRule({name: NonTermSymbol.Initializer}, [
+            {name: 'Expr'} // TODO
+        ]);
+        this.parser.addRule({name: NonTermSymbol.Initializer}, [
+            {name: TokenType.lCBracket},
+            {name: NonTermSymbol.InitializerList},
+            {name: TokenType.Comma, optional: true},
+            {name: TokenType.rCBracket}
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.InitializerList}, [
+            {name: NonTermSymbol.InitializerList, optional: true},
+            {name: NonTermSymbol.Designation, optional: true},
+            {name: NonTermSymbol.Initializer}
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.Designation}, [
+            {name: NonTermSymbol.DesignatorList},
+            {name: TokenType.SimpleAssignment},
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.DesignatorList}, [
+            {name: NonTermSymbol.DesignatorList, optional: true},
+            {name: NonTermSymbol.Designator}
+        ]);
+
+        this.parser.addRule({name: NonTermSymbol.Designator}, [
+            {name: TokenType.lSBracket},
+            {name: 'Expr'}, // TODO
+            {name: TokenType.rSBracket},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.Designator}, [
+            {name: TokenType.MemberAccess},
+            {name: TokenType.ID},
+        ]);
+    } //}
+
     private GrammarBasicStatement() //{
     {
         this.parser.addRule({name: 'Expr'}, [{name: TokenType.BREAK}]);
@@ -419,6 +655,10 @@ export class CParser {
 
     feed(text: string) {
         this.tokenizer.feed(text);
+    }
+
+    reset() {
+        this.tokenizer = new CTokenizer(this.filename);
     }
 
     run() {
