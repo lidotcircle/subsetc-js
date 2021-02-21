@@ -2,6 +2,26 @@ import { CTokenizer, TokenType } from "./ctokenizer";
 import { ParserGenerator, RuleAssocitive } from "./ParserGenerator/generator";
 
 enum NonTermSymbol {
+    PrimaryExpression = 'PrimaryExpression', PostfixExpression = 'PostfixExpression',
+    ArgumentExpressionList = 'ArgumentExpressionList',
+    UnaryExpression = 'UnaryExpression', 
+    CastExpression = 'CastExpression',
+    MultiplicativeExpression = 'MultiplicativeExpression',
+    AdditiveExpression = 'AdditiveExpression',
+    ShiftExpression = 'ShiftExpression',
+    RelationalExpression = 'RelationalExpression',
+    EqualityExpression = 'EqualityExpression',
+    AndExpression = 'AndExpression',
+    ExclusiveOrExpression = 'ExclusiveOrExpression',
+    InclusiveOrExpression = 'InclusiveOrExpression',
+    LogicalAndExpression = 'LogicalAndExpression',
+    LogicalOrExpression = 'LogicalOrExpression',
+    ConditionalExpression = 'ConditionalExpression',
+    AssignmentExpression = 'AssignmentExpression',
+    AssignmentOperator = 'AssignmentOperator',
+    Expression = 'Expression', 
+    ConstantExpression = 'ConstantExpression',
+
     Declaration = 'Declaration', DeclarationSpecifiers = 'DeclarationSpecifiers',
     InitDeclaratorList = 'InitDeclaratorList', StorageClassSpecifier = 'StorageClassSpecifier',
     TypeSpecifier = 'TypeSpecifier', TypeQualifier = 'TypeQualifier',
@@ -36,8 +56,10 @@ export class CParser {
         this.InitParser();
     }
 
-    private InitParser() {
+    private InitParser() //{
+    {
         this.parser.addStartSymbol(NonTermSymbol.Declaration);
+        this.parser.addStartSymbol(NonTermSymbol.Expression);
 
         // Expressions
         this.GrammarExpr();
@@ -54,149 +76,297 @@ export class CParser {
         this.GrammarSwitchStatement();
 
         this.parser.compile();
-    }
+    } //}
 
     private GrammarExpr() //{
     {
-        this.parser.addRule({name: 'Expr'}, [{name: TokenType.ID}]);
-        this.parser.addRule({name: 'Expr'}, [{name: TokenType.STRING}]);
-        this.parser.addRule({name: 'Expr'}, [{name: TokenType.INTEGER}]);
-        this.parser.addRule({name: 'Expr'}, [{name: TokenType.FLOAT}]);
-        this.parser.addRule({name: 'Expr'}, [{name: TokenType.lRBracket}, {name: 'Expr'}, {name: TokenType.rRBracket}]);
+        // (6.5.1)
+        [
+            TokenType.ID, TokenType.StringLiteral, TokenType.IntegerLiteral, TokenType.FloatLiteral
+        ].forEach(tt => this.parser.addRule({name: NonTermSymbol.PrimaryExpression}, [{name: tt}]));
+        this.parser.addRule({name: NonTermSymbol.PrimaryExpression}, [
+            {name: TokenType.lRBracket}, 
+            {name: NonTermSymbol.Expression}, 
+            {name: TokenType.rRBracket}
+        ]);
 
-        this.parser.addRule({name: 'Exprlist'}, [{name: 'Expr'}, {name: TokenType.Comma}, {name: 'Expr'}], {priority: 21});
-        this.parser.addRule({name: 'Exprlist'}, [{name: 'Exprlist'}, {name: TokenType.Comma}, {name: 'Expr'}], {priority: 21});
-
-        this.parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: TokenType.Increment}], {priority: 1});
-        this.parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: TokenType.Decrement}], {priority: 1});
-        this.parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: TokenType.MemberAccess}, {name: TokenType.ID}], {priority: 1});
-        this.parser.addRule({name: 'Expr'}, [
-            {name: 'Expr'},
-            {name: TokenType.MemberAccessByPointer},
-            {name: TokenType.ID}
-        ], {priority: 1});
-
-        this.parser.addRule({name: 'Expr'}, [
-            {name: 'Expr'}, 
-            {name: TokenType.lRBracket},
-            {name: 'Expr'}, 
-            {name: TokenType.rRBracket},
-        ], {priority: 1});
-        this.parser.addRule({name: 'Expr'}, [
-            {name: 'Expr'}, 
-            {name: TokenType.lRBracket},
-            {name: 'Exprlist', optional: true}, 
-            {name: TokenType.rRBracket},
-        ], {priority: 1});
-
-        this.parser.addRule({name: 'Expr'}, [
-            {name: 'Expr'},
+        // (6.5.2)
+        this.parser.addRule({name: NonTermSymbol.PostfixExpression}, [
+            {name: NonTermSymbol.PrimaryExpression},
+        ], {priority: 1.5});
+        this.parser.addRule({name: NonTermSymbol.PostfixExpression}, [
+            {name: NonTermSymbol.PostfixExpression},
             {name: TokenType.lSBracket},
-            {name: 'Expr'},
+            {name: NonTermSymbol.Expression},
             {name: TokenType.rSBracket},
         ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.PostfixExpression}, [
+            {name: NonTermSymbol.PostfixExpression},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.ArgumentExpressionList, optional: true},
+            {name: TokenType.rRBracket},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.PostfixExpression}, [
+            {name: NonTermSymbol.PostfixExpression},
+            {name: TokenType.MemberAccess},
+            {name: TokenType.ID},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.PostfixExpression}, [
+            {name: NonTermSymbol.PostfixExpression},
+            {name: TokenType.MemberAccessByPointer},
+            {name: TokenType.ID},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.PostfixExpression}, [
+            {name: NonTermSymbol.PostfixExpression},
+            {name: TokenType.Increment},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.PostfixExpression}, [
+            {name: NonTermSymbol.PostfixExpression},
+            {name: TokenType.Decrement},
+        ], {priority: 1});
+        this.parser.addRule({name: NonTermSymbol.PostfixExpression}, [
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.TypeName},
+            {name: TokenType.rRBracket},
+            {name: TokenType.lCBracket},
+            {name: NonTermSymbol.InitializerList},
+            {name: TokenType.Comma, optional: true},
+            {name: TokenType.rCBracket},
+        ]);
 
-        this.parser.addRule({name: 'Expr'}, [
-            {name: TokenType.Increment}, 
-            {name: 'Expr'}
-        ], {priority: 2, associative: RuleAssocitive.Right});
-        this.parser.addRule({name: 'Expr'}, [
-            {name: TokenType.Decrement}, 
-            {name: 'Expr'}
-        ], {priority: 2, associative: RuleAssocitive.Right});
-        this.parser.addRule({name: 'Expr'}, [
-            {name: TokenType.Addition_UnaryPlus}, 
-            {name: 'Expr'}
-        ], {priority: 2, associative: RuleAssocitive.Right, uid: 'prefix_add'});
-        this.parser.addRule({name: 'Expr'}, [
-            {name: TokenType.Substraction_UnaryMinus}, 
-            {name: 'Expr'}
-        ], {priority: 2, associative: RuleAssocitive.Right, uid: 'prefix_minus'});
-        this.parser.addRule({name: 'Expr'}, [
-            {name: TokenType.LogicalNot}, 
-            {name: 'Expr'}
-        ], {priority: 2, associative: RuleAssocitive.Right});
-        this.parser.addRule({name: 'Expr'}, [
-            {name: TokenType.BitwiseNot}, 
-            {name: 'Expr'}
-        ], {priority: 2, associative: RuleAssocitive.Right});
-        this.parser.addRule({name: 'Expr'}, [
-            {name: TokenType.Multiplication_AddressOf}, 
-            {name: 'Expr'}
-        ], {priority: 2, associative: RuleAssocitive.Right, uid: 'prefix_address'});
-        this.parser.addRule({name: 'Expr'}, [
-            {name: TokenType.BitwiseAnd_Reference}, 
-            {name: 'Expr'}
-        ], {priority: 2, associative: RuleAssocitive.Right, uid: 'prefix_ref'});
-        // TODO cast
+        this.parser.addRule({name: NonTermSymbol.ArgumentExpressionList}, [
+            {name: NonTermSymbol.AssignmentExpression},
+        ]);
+        this.parser.addRule({name: NonTermSymbol.ArgumentExpressionList}, [
+            {name: NonTermSymbol.ArgumentExpressionList},
+            {name: TokenType.Comma},
+            {name: NonTermSymbol.AssignmentExpression},
+        ]);
+
+        // (6.5.3)
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: NonTermSymbol.PostfixExpression}
+        ], {priority: 2.5});
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: TokenType.Increment},
+            {name: NonTermSymbol.UnaryExpression},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: TokenType.Decrement},
+            {name: NonTermSymbol.UnaryExpression},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: TokenType.BitwiseAnd_Reference},
+            {name: NonTermSymbol.UnaryExpression},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: TokenType.Multiplication_AddressOf},
+            {name: NonTermSymbol.UnaryExpression},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: TokenType.Addition_UnaryPlus},
+            {name: NonTermSymbol.UnaryExpression},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: TokenType.Substraction_UnaryMinus},
+            {name: NonTermSymbol.UnaryExpression},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: TokenType.LogicalNot},
+            {name: NonTermSymbol.UnaryExpression},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: TokenType.BitwiseNot},
+            {name: NonTermSymbol.UnaryExpression},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: TokenType.SIZEOF},
+            {name: NonTermSymbol.UnaryExpression},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: TokenType.SIZEOF},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.TypeName},
+            {name: TokenType.rRBracket},
+        ], {priority: 2});
+        this.parser.addRule({name: NonTermSymbol.UnaryExpression}, [
+            {name: TokenType.SIZEOF},
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.UnaryExpression},
+            {name: TokenType.rRBracket},
+        ], {priority: 2});
+
+        // (6.5.4)
+        this.parser.addRule({name: NonTermSymbol.CastExpression}, [
+            {name: NonTermSymbol.UnaryExpression},
+        ], {priority: 2.5});
+        this.parser.addRule({name: NonTermSymbol.CastExpression}, [
+            {name: TokenType.lRBracket},
+            {name: NonTermSymbol.TypeName},
+            {name: TokenType.rRBracket},
+            {name: NonTermSymbol.CastExpression},
+        ], {priority: 2});
         
-        this.parser.addRule({name: 'Expr'}, [
-            {name: 'Expr'},
-            {name: TokenType.Multiplication_AddressOf}, 
-            {name: 'Expr'}
-        ], {priority: 3, uid: 'in_multiplication'});
-        this.parser.addExtraPriority('prefix_address', 'in_multiplication');
-        this.parser.addRule({name: 'Expr'}, [
-            {name: 'Expr'},
-            {name: TokenType.BitwiseAnd_Reference}, 
-            {name: 'Expr'}
-        ], {priority: 8, uid: 'in_bitand'});
-        this.parser.addExtraPriority('prefix_ref', 'in_bitand');
+        // (6.5.5)
+        this.parser.addRule({name: NonTermSymbol.MultiplicativeExpression}, [
+            {name: NonTermSymbol.CastExpression},
+        ], {priority: 3.5});
+        [ TokenType.Multiplication_AddressOf, TokenType.Division, TokenType.Remainder ]
+        .forEach(tt => {
+            this.parser.addRule({name: NonTermSymbol.MultiplicativeExpression}, [
+                {name: NonTermSymbol.MultiplicativeExpression},
+                {name: tt},
+                {name: NonTermSymbol.CastExpression},
+            ], {priority: 3});
+        });
 
-        [TokenType.Division, TokenType.Remainder].forEach(
-            tt => this.parser.addRule({name: 'Expr'}, [{name: 'Expr'}, {name: tt}, {name: 'Expr'}], {priority: 3}));
+        // (6.5.6)
+        this.parser.addRule({name: NonTermSymbol.AdditiveExpression}, [
+            {name: NonTermSymbol.MultiplicativeExpression},
+        ], {priority: 4.5});
+        [ TokenType.Addition_UnaryPlus, TokenType.Substraction_UnaryMinus ]
+            .forEach(tt => {
+            this.parser.addRule({name: NonTermSymbol.AdditiveExpression}, [
+                {name: NonTermSymbol.AdditiveExpression},
+                {name: tt},
+                {name: NonTermSymbol.MultiplicativeExpression},
+            ], {priority: 4});
+        });
 
-        this.parser.addRule({name: 'Expr'}, [
-            {name: 'Expr'},
-            {name: TokenType.Addition_UnaryPlus}, 
-            {name: 'Expr'}
-        ], {priority: 4, uid: 'in_addition'});
-        this.parser.addExtraPriority('prefix_add', 'in_addition');
-        this.parser.addRule({name: 'Expr'}, [
-            {name: 'Expr'},
-            {name: TokenType.Substraction_UnaryMinus}, 
-            {name: 'Expr'}
-        ], {priority: 4, uid: 'in_minus'});
-        this.parser.addExtraPriority('prefix_minus', 'in_minus');
+        // (6.5.7)
+        this.parser.addRule({name: NonTermSymbol.ShiftExpression}, [
+            {name: NonTermSymbol.AdditiveExpression},
+        ], {priority: 5.5});
+        [ TokenType.BitwiseLeftShift, TokenType.BitwiseRightShift ]
+            .forEach(tt => {
+            this.parser.addRule({name: NonTermSymbol.ShiftExpression}, [
+                {name: NonTermSymbol.ShiftExpression},
+                {name: tt},
+                {name: NonTermSymbol.AdditiveExpression},
+            ], {priority: 5});
+        });
 
-        [
-            [TokenType.BitwiseRightShift, 5], [TokenType.BitwiseLeftShift, 5],
-            [TokenType.LessThan, 6],          [TokenType.LessEqual, 6],
-            [TokenType.GreaterThan, 6],       [TokenType.GreaterEqual, 6],
-            [TokenType.Equal, 7],             [TokenType.NotEqual, 7],
-            [TokenType.BitwiseXor, 9],        [TokenType.BitwiseOr, 10],
-            [TokenType.LogicalAnd, 11],       [TokenType.LogicalOr, 12],
-        ].forEach(val => this.parser.addRule({name: 'Expr'}, [
-            {name: 'Expr'}, 
-            {name: val[0] as TokenType}, 
-            {name: 'Expr'}
-        ], {priority: val[1] as number}));
+        // (6.5.8)
+        this.parser.addRule({name: NonTermSymbol.RelationalExpression}, [
+            {name: NonTermSymbol.ShiftExpression},
+        ], {priority: 6.5});
+        [ TokenType.GreaterThan, TokenType.GreaterEqual, TokenType.LessThan, TokenType.LessEqual ]
+            .forEach(tt => {
+            this.parser.addRule({name: NonTermSymbol.RelationalExpression}, [
+                {name: NonTermSymbol.RelationalExpression},
+                {name: tt},
+                {name: NonTermSymbol.ShiftExpression},
+            ], {priority: 6});
+        });
 
-        this.parser.addRule({name: 'Expr'}, [
-            {name: 'Expr'},
+        // (6.5.9)
+        this.parser.addRule({name: NonTermSymbol.EqualityExpression}, [
+            {name: NonTermSymbol.RelationalExpression},
+        ], {priority: 7.5});
+        [ TokenType.Equal, TokenType.NotEqual ]
+            .forEach(tt => {
+            this.parser.addRule({name: NonTermSymbol.EqualityExpression}, [
+                {name: NonTermSymbol.EqualityExpression},
+                {name: tt},
+                {name: NonTermSymbol.RelationalExpression},
+            ], {priority: 7});
+        });
+
+        // (6.5.10)
+        this.parser.addRule({name: NonTermSymbol.AndExpression}, [
+            {name: NonTermSymbol.EqualityExpression},
+        ], {priority: 8.5});
+        this.parser.addRule({name: NonTermSymbol.AndExpression}, [
+            {name: NonTermSymbol.AndExpression},
+            {name: TokenType.BitwiseAnd_Reference},
+            {name: NonTermSymbol.EqualityExpression},
+        ], {priority: 8});
+
+        // (6.5.11)
+        this.parser.addRule({name: NonTermSymbol.ExclusiveOrExpression}, [
+            {name: NonTermSymbol.AndExpression},
+        ], {priority: 9.5});
+        this.parser.addRule({name: NonTermSymbol.ExclusiveOrExpression}, [
+            {name: NonTermSymbol.ExclusiveOrExpression},
+            {name: TokenType.BitwiseXor},
+            {name: NonTermSymbol.AndExpression},
+        ], {priority: 9});
+
+        // (6.5.12)
+        this.parser.addRule({name: NonTermSymbol.InclusiveOrExpression}, [
+            {name: NonTermSymbol.ExclusiveOrExpression},
+        ], {priority: 10.5});
+        this.parser.addRule({name: NonTermSymbol.InclusiveOrExpression}, [
+            {name: NonTermSymbol.InclusiveOrExpression},
+            {name: TokenType.BitwiseOr},
+            {name: NonTermSymbol.ExclusiveOrExpression},
+        ], {priority: 10});
+
+        // (6.5.13)
+        this.parser.addRule({name: NonTermSymbol.LogicalAndExpression}, [
+            {name: NonTermSymbol.InclusiveOrExpression},
+        ], {priority: 11.5});
+        this.parser.addRule({name: NonTermSymbol.LogicalAndExpression}, [
+            {name: NonTermSymbol.LogicalAndExpression},
+            {name: TokenType.LogicalAnd},
+            {name: NonTermSymbol.InclusiveOrExpression},
+        ], {priority: 11});
+
+        // (6.5.14)
+        this.parser.addRule({name: NonTermSymbol.LogicalOrExpression}, [
+            {name: NonTermSymbol.LogicalAndExpression},
+        ], {priority: 12.5});
+        this.parser.addRule({name: NonTermSymbol.LogicalOrExpression}, [
+            {name: NonTermSymbol.LogicalOrExpression},
+            {name: TokenType.LogicalOr},
+            {name: NonTermSymbol.LogicalAndExpression},
+        ], {priority: 12});
+
+        // (6.5.15)
+        this.parser.addRule({name: NonTermSymbol.ConditionalExpression}, [
+            {name: NonTermSymbol.LogicalOrExpression},
+        ], {priority: 13.5});
+        this.parser.addRule({name: NonTermSymbol.ConditionalExpression}, [
+            {name: NonTermSymbol.LogicalOrExpression},
             {name: TokenType.Question},
-            {name: 'Expr'},
+            {name: NonTermSymbol.Expression},
             {name: TokenType.Colon},
-            {name: 'Expr'},
-        ], {priority: 13, associative: RuleAssocitive.Right});
+            {name: NonTermSymbol.ConditionalExpression},
+        ], {priority: 13});
 
+        // (6.5.16)
+        this.parser.addRule({name: NonTermSymbol.AssignmentExpression}, [
+            {name: NonTermSymbol.ConditionalExpression},
+        ], {priority: 14.5});
         [
-            TokenType.SimpleAssignment, 
-            TokenType.AssignmentSubstraction,
-            TokenType.AssignmentAddition,
-            TokenType.AssignmentProduct, 
-            TokenType.AssignmentQuotient,
-            TokenType.AssignmentRemainder,
-            TokenType.AssignmentBitwiseLeftShift,
-            TokenType.AssignmentBitwiseRightShift,
-            TokenType.AssignmentBitwiseAnd,
-            TokenType.AssignmentBitwiseXor,
+            TokenType.SimpleAssignment, TokenType.AssignmentProduct,
+            TokenType.AssignmentQuotient, TokenType.AssignmentRemainder,
+            TokenType.AssignmentAddition, TokenType.AssignmentSubstraction,
+            TokenType.AssignmentBitwiseLeftShift, TokenType.AssignmentBitwiseRightShift,
+            TokenType.AssignmentBitwiseAnd, TokenType.AssignmentBitwiseXor,
             TokenType.AssignmentBitwiseOr
-        ].forEach(tt => this.parser.addRule({name: 'Expr'}, [
-            {name: 'Expr'},
-            {name: tt},
-            {name: 'Expr'}
-        ], {priority: 14, associative: RuleAssocitive.Right}));
+        ].forEach(tt => {
+            this.parser.addRule({name: NonTermSymbol.AssignmentExpression}, [
+                {name: NonTermSymbol.UnaryExpression},
+                {name: tt},
+                {name: NonTermSymbol.AssignmentExpression},
+            ]);
+        }, {priority: 14});
+
+        // (6.5.17)
+        this.parser.addRule({name: NonTermSymbol.Expression}, [
+            {name: NonTermSymbol.AssignmentExpression},
+        ], {priority: 15.5});
+        this.parser.addRule({name: NonTermSymbol.Expression}, [
+            {name: NonTermSymbol.Expression},
+            {name: TokenType.Comma},
+            {name: NonTermSymbol.AssignmentExpression},
+        ], {priority: 15});
+
+        // (6.5.6)
+        this.parser.addRule({name: NonTermSymbol.ConstantExpression}, [
+            {name: NonTermSymbol.AssignmentExpression},
+        ]);
     } //}
 
     private GrammarDeclaration() //{
@@ -251,7 +421,7 @@ export class CParser {
             TokenType.VOID,
             TokenType.CHAR,   TokenType.SHORT,
             TokenType.INT,    TokenType.LONG,
-            TokenType.FLOATV,  TokenType.DOUBLE,
+            TokenType.FLOAT,  TokenType.DOUBLE,
             TokenType.SIGNED, TokenType.UNSIGNED,
             NonTermSymbol.TypedefName
         ].forEach(tt => this.parser.addRule({name: NonTermSymbol.TypeSpecifier}, [{name: tt}]));
@@ -332,7 +502,7 @@ export class CParser {
         this.parser.addRule({name: NonTermSymbol.StructDeclarator}, [
             {name: NonTermSymbol.Declarator, optional: true},
             {name: TokenType.Colon},
-            {name: 'Expr'} // TODO
+            {name: NonTermSymbol.ConstantExpression}
         ]);
 
         // (6.7.2.2)
@@ -365,7 +535,7 @@ export class CParser {
         this.parser.addRule({name: NonTermSymbol.Enumerator}, [
             {name: TokenType.ID},
             {name: TokenType.SimpleAssignment},
-            {name: 'Expr'} // TODO
+            {name: NonTermSymbol.ConstantExpression}
         ], {priority: 1});
 
         // (6.7.3)
@@ -394,7 +564,7 @@ export class CParser {
             {name: NonTermSymbol.DirectDeclarator},
             {name: TokenType.lSBracket},
             {name: NonTermSymbol.TypeQualifierList, optional: true},
-            {name: 'Expr', optional: true}, // TODO
+            {name: NonTermSymbol.AssignmentExpression, optional: true},
             {name: TokenType.rSBracket},
         ], {priority: 1});
         this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
@@ -402,7 +572,7 @@ export class CParser {
             {name: TokenType.lSBracket},
             {name: TokenType.STATIC},
             {name: NonTermSymbol.TypeQualifierList, optional: true},
-            {name: 'Expr'}, // TODO
+            {name: NonTermSymbol.AssignmentExpression},
             {name: TokenType.rSBracket},
         ]);
         this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
@@ -410,7 +580,7 @@ export class CParser {
             {name: TokenType.lSBracket},
             {name: NonTermSymbol.TypeQualifierList},
             {name: TokenType.STATIC},
-            {name: 'Expr'}, // TODO
+            {name: NonTermSymbol.AssignmentExpression},
             {name: TokenType.rSBracket},
         ], {priority: 1});
         this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
@@ -521,7 +691,7 @@ export class CParser {
             {name: NonTermSymbol.DirectAbstractDeclarator, optional: true},
             {name: TokenType.lSBracket},
             {name: NonTermSymbol.TypeQualifierList, optional: true},
-            {name: 'Expr', optional: true}, // TODO
+            {name: NonTermSymbol.AssignmentExpression, optional: true},
             {name: TokenType.rSBracket},
         ]);
         this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
@@ -529,7 +699,7 @@ export class CParser {
             {name: TokenType.lSBracket},
             {name: TokenType.STATIC},
             {name: NonTermSymbol.TypeQualifierList, optional: true},
-            {name: 'Expr'}, // TODO
+            {name: NonTermSymbol.AssignmentExpression},
             {name: TokenType.rSBracket},
         ]);
         this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
@@ -537,7 +707,7 @@ export class CParser {
             {name: TokenType.lSBracket},
             {name: NonTermSymbol.TypeQualifierList},
             {name: TokenType.STATIC},
-            {name: 'Expr'}, // TODO
+            {name: NonTermSymbol.AssignmentExpression},
             {name: TokenType.rSBracket},
         ]);
         this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
@@ -562,7 +732,7 @@ export class CParser {
 
         // (6.7.8)
         this.parser.addRule({name: NonTermSymbol.Initializer}, [
-            {name: 'Expr'} // TODO
+            {name: NonTermSymbol.AssignmentExpression}
         ]);
         this.parser.addRule({name: NonTermSymbol.Initializer}, [
             {name: TokenType.lCBracket},
@@ -589,7 +759,7 @@ export class CParser {
 
         this.parser.addRule({name: NonTermSymbol.Designator}, [
             {name: TokenType.lSBracket},
-            {name: 'Expr'}, // TODO
+            {name: NonTermSymbol.ConstantExpression},
             {name: TokenType.rSBracket},
         ]);
         this.parser.addRule({name: NonTermSymbol.Designator}, [

@@ -54,9 +54,9 @@ export enum TokenType {
     Question  = '?',
     Colon     = ':',
 
-    STRING  = 'STRING',
-    INTEGER = 'INTEGER',
-    FLOAT   = 'FLOAT',
+    StringLiteral  = 'STRING_LITERAL',
+    IntegerLiteral = 'INTEGER_LITERAL',
+    FloatLiteral   = 'FLOAT_LITERAL',
 
     IF       = 'IF',
     ELSE     = 'ELSE',
@@ -80,7 +80,7 @@ export enum TokenType {
     SHORT    = 'SHORT',
     INT      = 'INT',
     LONG     = 'LONG',
-    FLOATV   = 'FLOATV',
+    FLOAT    = 'FLOAT',
     DOUBLE   = 'DOUBLE',
     SIGNED   = 'SIGNED',
     UNSIGNED = 'UNSIGNED',
@@ -96,6 +96,7 @@ export enum TokenType {
     VOLATILE = 'VOLATILE',
 
     INLINE = 'INLINE',
+    SIZEOF = 'SIZEOF',
 }
 
 const ReservedKeywords = {
@@ -129,7 +130,7 @@ const ReservedKeywords = {
     'long':     TokenType.LONG,
     'signed':   TokenType.SIGNED,
     'unsigned': TokenType.UNSIGNED,
-    'float':    TokenType.FLOATV,
+    'float':    TokenType.FLOAT,
     'double':   TokenType.DOUBLE,
 
     'const':    TokenType.CONST,
@@ -137,6 +138,7 @@ const ReservedKeywords = {
     'volatile': TokenType.VOLATILE,
 
     'inline': TokenType.INLINE,
+    'sizeof': TokenType.SIZEOF,
 }
 
 const SymbolsMapping = {
@@ -218,7 +220,7 @@ export class IdentifierToken extends Token {
 export class StringToken extends Token {
     readonly value: string;
     constructor(str: string, line: number, column: number, file: string) {
-        super(TokenType.STRING, line, column, file);
+        super(TokenType.StringLiteral, line, column, file);
         this.value = str;
     }
 }
@@ -226,7 +228,7 @@ export class StringToken extends Token {
 export class IntegerToken extends Token {
     readonly value: number;
     constructor(val: number, line: number, column: number, file: string) {
-        super(TokenType.INTEGER, line, column, file);
+        super(TokenType.IntegerLiteral, line, column, file);
         this.value = val;
     }
 }
@@ -234,7 +236,7 @@ export class IntegerToken extends Token {
 export class FloatToken extends Token {
     readonly value: number;
     constructor(val: number, line: number, column: number, file: string) {
-        super(TokenType.FLOAT, line, column, file);
+        super(TokenType.FloatLiteral, line, column, file);
         this.value = val;
     }
 }
