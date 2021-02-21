@@ -214,15 +214,27 @@ export class ParserGenerator {
                 }
             }
 
-            let nreduce=0;
+            const promrules: Set<string> = new Set();
             for(let vv of full) {
                 const pv = this.ruleOptions(vv);
                 if(pv.priority == prh.priority && pv.associative == prh.associative) {
-                    nreduce++;
+                    promrules.add(pv.uid);
+                }
+            }
+            if(promrules.size > 1) {
+                for(const kkm of this.resolvers) {
+                    if(kkm[0] == chari && 
+                       isSameSet(kkm[1], promrules))
+                    {
+                        const key = this.stateChar2str(current_stateid, chari);
+                        assert.equal(this.parserResolvers[key], null);
+                        this.parserResolvers[key] = kkm[2];
+                        return;
+                    }
                 }
             }
             const ReduceCheck = () => {
-                if(nreduce > 1) {
+                if(promrules.size > 1) {
                     let msg = '\n';
                     for(let vv of full) {
                         const pv = this.ruleOptions(vv);
@@ -238,7 +250,7 @@ export class ParserGenerator {
                         character: chari, 
                         newstate: newstateset
                     }, null, 2);
-                    throw new Error(`conflict rule in reduce: n=${nreduce} from ${current_stateid} to ${newstateid} ${msg}
+                    throw new Error(`conflict rule in reduce: n=${promrules.size} from ${current_stateid} to ${newstateid} ${msg}
                                      \n${moremsg}`);
                 }
             }
@@ -297,6 +309,16 @@ export class ParserGenerator {
         }
 
         return ans;
+    } //}
+
+    private parserResolvers: {[key: string]: (chari: ICharacter) => string} = {};
+    private resolvers: [string, Set<string>, (chari: ICharacter) => string][] = [];
+    resolveReduceConflictIn(tokenname: string, resolver: (chari: ICharacter) => string, ...rulenames) //{
+    {
+        const rulesset = new Set<string>();
+        rulenames.forEach(name => rulesset.add(name));
+        assert.equal(rulesset.size, rulenames.length);
+        this.resolvers.push([tokenname, rulesset, resolver]);
     } //}
 
     private save_state_go: Map<string, PushdownState> = new Map();
@@ -412,6 +434,8 @@ export class ParserGenerator {
         return `${rule}:${pos}`;
     } //}
 
+    private callbacks: ((chari: ICharacter) => void)[] = [];
+    trace(cb: (chari: ICharacter) => void) {this.callbacks.push(cb);}
     parse(tokenizer: ITokenizer, stopSymbolName?: string): number //{
     {
         let ok: boolean = false;
@@ -429,6 +453,7 @@ export class ParserGenerator {
             !tokenizer.current().end;
             tokenizer.next(), token=tokenizer.current(), consumed++) 
         {
+            for(const cb of this.callbacks) {cb(token);}
             this.pushNewCharacter(tokenizer, statestack, symbolstack, token);
 
             if(symbolstack.length == 2 && 
@@ -453,7 +478,17 @@ export class ParserGenerator {
                              symbolstack: ICharacter[], character: ICharacter)
     {
         const state = statestack[statestack.length - 1];
-        const nextstep = this.StateCharNext2StateRule[this.stateChar2str(state, character.name)];
+        const key = this.stateChar2str(state, character.name);
+        if(this.parserResolvers[key] != null) {
+            const ruleuid = this.parserResolvers[key](character);
+            const rules = this.uid2rules[ruleuid];
+            assert.notEqual(rules, null);
+            assert.equal(rules.size, 1);
+            this.reduceStackByRule(tokenizer, rules.keys().next().value, statestack, symbolstack, character);
+            return;
+        }
+
+        const nextstep = this.StateCharNext2StateRule[key];
         if(nextstep == null) {
             tokenizer.next();
             if(tokenizer.current().end) {
@@ -557,5 +592,16 @@ function printReduce(nt: INotTermianlCharacter, ts: ICharacter[]) //{
     print += ' ] => ';
     print += nt.name;
     console.log(print);
+} //}
+
+function isSameSet<T>(s1: Set<T>, s2: Set<T>): boolean //{
+{
+    if(s1.size != s2.size) return false;
+
+    for(const k1 of s1.keys()) {
+        if(!s2.has(k1)) return false;
+    }
+
+    return true;
 } //}
 

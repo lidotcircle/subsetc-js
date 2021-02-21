@@ -1,5 +1,7 @@
-import { CTokenizer, TokenType } from "./ctokenizer";
-import { ParserGenerator, RuleAssocitive } from "./ParserGenerator/generator";
+import { CompoundStatementAST, TranslationUnitAST } from "./ast/statement";
+import { FunctionType, PointerType, TypeCategory } from "./ast/type";
+import { CTokenizer, IdentifierToken, TokenType } from "./ctokenizer";
+import { ICharacter, ParserGenerator, RuleAssocitive } from "./ParserGenerator/generator";
 
 enum NonTermSymbol {
     PrimaryExpression = 'PrimaryExpression', PostfixExpression = 'PostfixExpression',
@@ -52,6 +54,9 @@ enum NonTermSymbol {
     FunctionDefinition = 'FunctionDefinition', DeclarationList = 'DeclarationList',
 }
 
+const AstSymbol = Symbol('ast');
+const DeclarationName = Symbol('dcname');
+
 export class CParser {
     private tokenizer: CTokenizer;
     private parser: ParserGenerator;
@@ -80,6 +85,8 @@ export class CParser {
         // External Definitions
         this.GrammarExternalDefinitions();
 
+        this.parser.resolveReduceConflictIn(TokenType.ID, chari => 'id2expr', 'id2expr', 'id2typedefname');
+        this.parser.resolveReduceConflictIn(TokenType.ID, chari => 'id2directdeclarator', 'id2directdeclarator', 'id2typedefname');
         this.parser.compile();
     } //}
 
@@ -87,8 +94,9 @@ export class CParser {
     {
         // (6.5.1)
         [
-            TokenType.ID, TokenType.StringLiteral, TokenType.IntegerLiteral, TokenType.FloatLiteral
+            TokenType.StringLiteral, TokenType.IntegerLiteral, TokenType.FloatLiteral
         ].forEach(tt => this.parser.addRule({name: NonTermSymbol.PrimaryExpression}, [{name: tt}]));
+        this.parser.addRule({name: NonTermSymbol.PrimaryExpression}, [{name: TokenType.ID}], {uid: 'id2expr'})
         this.parser.addRule({name: NonTermSymbol.PrimaryExpression}, [
             {name: TokenType.lRBracket}, 
             {name: NonTermSymbol.Expression}, 
@@ -557,14 +565,33 @@ export class CParser {
         this.parser.addRule({name: NonTermSymbol.Declarator}, [
             {name: NonTermSymbol.Pointer, optional: true},
             {name: NonTermSymbol.DirectDeclarator},
-        ], {priority: 2});
+        ], {
+            priority: 2,
+            callback: (head, body) => { // TODO
+                if(body.length == 1) {
+                    head[AstSymbol] = body[0][AstSymbol];
+                } else {
+                    const ast = new PointerType();
+                    ast.next = body[1][AstSymbol];
+                    head[AstSymbol] = ast;
+                }
+            }
+        });
 
-        this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [{name: TokenType.ID}]);
+        this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [{name: TokenType.ID}], {
+            uid: 'id2directdeclarator',
+            callback: (head, body) => head[DeclarationName] = (body[0] as IdentifierToken).id,
+        });
         this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
             {name: TokenType.lRBracket},
             {name: NonTermSymbol.Declarator},
             {name: TokenType.rRBracket},
-        ]);
+        ], {
+            callback: (head, body) => {
+                head[DeclarationName] = body[1][DeclarationName];
+                head[AstSymbol] = body[1][AstSymbol];
+            }
+        });
         this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
             {name: NonTermSymbol.DirectDeclarator},
             {name: TokenType.lSBracket},
@@ -579,7 +606,7 @@ export class CParser {
             {name: NonTermSymbol.TypeQualifierList, optional: true},
             {name: NonTermSymbol.AssignmentExpression},
             {name: TokenType.rSBracket},
-        ]);
+        ], {priority: 1});
         this.parser.addRule({name: NonTermSymbol.DirectDeclarator}, [
             {name: NonTermSymbol.DirectDeclarator},
             {name: TokenType.lSBracket},
@@ -681,11 +708,11 @@ export class CParser {
 
         this.parser.addRule({name: NonTermSymbol.AbstractDeclarator}, [
             {name: NonTermSymbol.Pointer},
-        ]);
+        ], {priority: 3});
         this.parser.addRule({name: NonTermSymbol.AbstractDeclarator}, [
             {name: NonTermSymbol.Pointer, optional: true},
             {name: NonTermSymbol.DirectAbstractDeclarator},
-        ]);
+        ], {priority: 2});
 
         this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
             {name: TokenType.lRBracket},
@@ -698,7 +725,7 @@ export class CParser {
             {name: NonTermSymbol.TypeQualifierList, optional: true},
             {name: NonTermSymbol.AssignmentExpression, optional: true},
             {name: TokenType.rSBracket},
-        ]);
+        ], {priority: 1});
         this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
             {name: NonTermSymbol.DirectAbstractDeclarator, optional: true},
             {name: TokenType.lSBracket},
@@ -706,7 +733,7 @@ export class CParser {
             {name: NonTermSymbol.TypeQualifierList, optional: true},
             {name: NonTermSymbol.AssignmentExpression},
             {name: TokenType.rSBracket},
-        ]);
+        ], {priority: 1});
         this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
             {name: NonTermSymbol.DirectAbstractDeclarator, optional: true},
             {name: TokenType.lSBracket},
@@ -714,26 +741,24 @@ export class CParser {
             {name: TokenType.STATIC},
             {name: NonTermSymbol.AssignmentExpression},
             {name: TokenType.rSBracket},
-        ]);
+        ], {priority: 1});
         this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
             {name: NonTermSymbol.DirectAbstractDeclarator, optional: true},
             {name: TokenType.lSBracket},
             {name: TokenType.Multiplication_AddressOf},
             {name: TokenType.rSBracket},
-        ]);
+        ], {priority: 1});
         this.parser.addRule({name: NonTermSymbol.DirectAbstractDeclarator}, [
             {name: NonTermSymbol.DirectAbstractDeclarator, optional: true},
             {name: TokenType.lRBracket},
             {name: NonTermSymbol.ParameterTypeList, optional: true},
             {name: TokenType.rRBracket},
-        ]);
+        ], {priority: 1});
 
         // (6.7.7)
-        /* TODO
-        this.parser.addRule({name: NonTermSymbol.TypeName}, [
+        this.parser.addRule({name: NonTermSymbol.TypedefName}, [
             {name: TokenType.ID}
-        ], {uid: 'typename-rule'});
-        */
+        ], {uid: 'id2typedefname'});
 
         // (6.7.8)
         this.parser.addRule({name: NonTermSymbol.Initializer}, [
@@ -911,14 +936,24 @@ export class CParser {
         this.parser.addRule({name: NonTermSymbol.TranslationUnit}, [
             {name: NonTermSymbol.TranslationUnit, optional: true},
             {name: NonTermSymbol.ExternalDeclaration},
-        ]);
+        ], {
+            callback: (head, body) => {
+                if(body.length == 1) {
+                    const ast = new TranslationUnitAST();
+                    ast.units.push(body[0][AstSymbol]);
+                    head[AstSymbol] = ast;
+                } else {
+                    (head[AstSymbol] as TranslationUnitAST).units.push(body[1][AstSymbol]);
+                }
+            }
+        });
 
         this.parser.addRule({name: NonTermSymbol.ExternalDeclaration}, [
             {name: NonTermSymbol.FunctionDefinition},
-        ]);
+        ], {callback: this.moven(0)});
         this.parser.addRule({name: NonTermSymbol.ExternalDeclaration}, [
             {name: NonTermSymbol.Declaration},
-        ]);
+        ], {callback: this.moven(0)});
 
         // (6.9.1)
         this.parser.addRule({name: NonTermSymbol.FunctionDefinition}, [
@@ -926,13 +961,38 @@ export class CParser {
             {name: NonTermSymbol.Declarator},
             {name: NonTermSymbol.DeclarationList, optional: true},
             {name: NonTermSymbol.CompoundStatement},
-        ], {priority: 1});
+        ], {
+            priority: 1,
+            callback: (head, body) => {
+                if(body.length == 4) {
+                    throw new Error('not implemented');
+                }
+
+                // TODO
+                return;
+                const dtor = body[1][AstSymbol] as FunctionType;
+                if(dtor.type != TypeCategory.Function) {
+                    throw new Error('expect a function definition');
+                }
+                const statement = body[2][AstSymbol] as CompoundStatementAST;
+            }
+        });
 
         // (6.9.2)
         this.parser.addRule({name: NonTermSymbol.DeclarationList}, [
             {name: NonTermSymbol.DeclarationList, optional: true},
             {name: NonTermSymbol.Declaration},
         ]);
+    } //}
+
+    private moven(n: number) //{
+    {
+        return (head: ICharacter, body: ICharacter[]) => {
+            if(body[n][AstSymbol] == null) {
+                // TODO throw new Error('unexpected null value');
+            }
+            head[AstSymbol] = body[n][AstSymbol];
+        };
     } //}
 
     feed(text: string) {

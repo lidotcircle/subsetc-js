@@ -67,5 +67,9 @@ describe('cparser test', () => {
     shouldpass(`int main() {
         a + b;
     }`);
+
+    shouldpass(`int* hulu();`);
+    shouldpass(`int* (*hulu)();`);
+    shouldpass(`void (*signal(int sig, void (*func)(int)))(int);`);
 });
 
